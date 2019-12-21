@@ -4,7 +4,9 @@ import java.util.Scanner;
 class Functions {
     boolean quickLearn;
     int inputNodes = 9;
-    int hiddenNodes = 27;
+    int hidden1Nodes = 27;
+    int hidden2Nodes = 27;
+    int hidden3Nodes = 27;
     int outputNodes = 1;
     Scanner sc = new Scanner(System.in);
     private final int[][] boardValues = {{0,0,0},{0,0,0},{0,0,0}};
@@ -18,13 +20,13 @@ class Functions {
     double costSum;
     int xWinCounter = 0;
     int oWinCounter = 0;
-    ANN oAnn = new ANN(inputNodes, hiddenNodes, outputNodes);
+    ANN oAnn = new ANN(inputNodes, hidden1Nodes, hidden2Nodes, hidden3Nodes, outputNodes);
     Storage oStorage = new Storage();
     private double[][] oBoard1 = new double[1][inputNodes];
     private double[][] oBoard2 = new double[1][inputNodes];
     private double[][] oBoard3 = new double[1][inputNodes];
     private double[][] oBoard4 = new double[1][inputNodes];
-    ANN xAnn = new ANN(inputNodes, hiddenNodes, outputNodes);
+    ANN xAnn = new ANN(inputNodes, hidden1Nodes, hidden2Nodes, hidden3Nodes, outputNodes);
     Storage xStorage = new Storage();
     private double[][] xBoard1 = new double[1][inputNodes];
     private double[][] xBoard2 = new double[1][inputNodes];
@@ -350,7 +352,7 @@ class Functions {
     void oTrainAI(){
         fixZeroes();
         if(win == 1){
-            double randomness = .9;
+            double randomness = 1;
             double[][] target = {{-1}};
             oAnn.backpropagation(oBoard1, target, randomness*.3);
             oAnn.backpropagation(oBoard2, target, randomness);
@@ -360,9 +362,9 @@ class Functions {
                 oAnn.backpropagation(oBoard4, target, randomness);
         }
         else if(win == 0){
-            double randomness = .5;
+            double randomness = 1;
             double[][] target = {{0}};
-            oAnn.backpropagation(oBoard1, target, randomness*.3);
+            oAnn.backpropagation(oBoard1, target, randomness);
             oAnn.backpropagation(oBoard2, target, randomness);
             if(oTurnAICounter > 2)
                 oAnn.backpropagation(oBoard3, target, randomness);
@@ -372,7 +374,7 @@ class Functions {
         else if(win == -1){
             double randomness = 1;
             double[][] target = {{1}};
-            oAnn.backpropagation(oBoard1, target, randomness*.3);
+            oAnn.backpropagation(oBoard1, target, randomness);
             oAnn.backpropagation(oBoard2, target, randomness);
             if(oTurnAICounter > 2)
                 oAnn.backpropagation(oBoard3, target, randomness);
@@ -466,7 +468,7 @@ class Functions {
                 xAnn.backpropagation(xBoard4, target, randomness);
         }
         else if(win == 0){
-            double randomness = .5;
+            double randomness = 1;
             double[][] target = {{-1}};
             xAnn.backpropagation(xBoard1, target, randomness);
             xAnn.backpropagation(xBoard2, target, randomness);
@@ -476,7 +478,7 @@ class Functions {
                 xAnn.backpropagation(xBoard4, target, randomness);
         }
         else if(win == -1){
-            double randomness = .9;
+            double randomness = 1;
             double[][] target = {{-1}};
             xAnn.backpropagation(xBoard1, target, randomness);
             xAnn.backpropagation(xBoard2, target, randomness);
@@ -521,7 +523,7 @@ class Functions {
             xBoard4 = inputsArray;
     }
     void mutateWeights(){
-        oAnn.mutate();
-        xAnn.mutate();
+//        oAnn.mutate();
+//        xAnn.mutate();
     }
 }

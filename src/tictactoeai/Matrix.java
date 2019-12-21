@@ -57,18 +57,18 @@ public class Matrix {
     }
     static double[][] scale(double[][] matrix, double factor){
         sizeException(matrix);
-        double[][] matrixResult = matrix;
+        double[][] matrixResult = new double[matrix.length][matrix[0].length];
         for(int i = 0; i < matrix.length; ++i)
             for(int j = 0; j < matrix[0].length; ++j)
-                matrix[i][j] = factor * matrix[i][j];
+                matrixResult[i][j] = factor * matrix[i][j];
         return matrixResult;   
     }
     static double[][] scale(double factor, double[][] matrix){
         sizeException(matrix);
-        double[][] matrixResult = matrix;
+        double[][] matrixResult = new double[matrix.length][matrix[0].length];
         for(int i = 0; i < matrix.length; ++i)
             for(int j = 0; j < matrix[0].length; ++j)
-                matrix[i][j] = factor * matrix[i][j];
+                matrixResult[i][j] = factor * matrix[i][j];
         return matrixResult;   
     }
     static double[][] add(double[][] matrixA, double[][] matrixB){
@@ -115,10 +115,11 @@ public class Matrix {
         return matrixResult;
     }
     static double[][] power(double[][] matrix, double power){
+        double[][] matrixResult = new double[matrix.length][matrix[0].length];
         for(int i = 0; i < matrix.length; ++i)
             for(int j = 0; j < matrix[0].length; ++j)
-                matrix[i][j] = Math.pow(matrix[i][j], power);
-        return matrix;
+                matrixResult[i][j] = Math.pow(matrix[i][j], power);
+        return matrixResult;
     }
     static double sum(double[][] matrix){
         double sum = 0;

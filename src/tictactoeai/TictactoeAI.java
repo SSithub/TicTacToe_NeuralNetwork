@@ -11,7 +11,7 @@ public class TictactoeAI {
             fc.quickLearn = true;
         else
             fc.quickLearn = false;
-        int batches = 10000;
+        int batches = 1000;
         fc.oLoad();
         fc.xLoad();
         while(true){
