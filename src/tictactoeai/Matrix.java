@@ -45,14 +45,14 @@ public class Matrix {
             }
         return matrixResult;
     }
-    static double[][] randomize(double[][] matrix, double range, double start){
+    static double[][] randomize(double[][] matrix, double range, double minimum){
         sizeException(matrix);
         double[][] matrixResult = matrix;
         int rows = matrixResult.length;
         int columns = matrixResult[0].length;
         for(int i = 0; i < rows; i++)
             for(int j = 0; j < columns; j++)
-                matrixResult[i][j] = Math.random() * range + start;
+                matrixResult[i][j] = Math.random() * range + minimum;
         return matrixResult;
     }
     static double[][] transpose(double[][] matrix){

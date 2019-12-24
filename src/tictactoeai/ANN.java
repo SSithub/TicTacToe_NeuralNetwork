@@ -1,7 +1,7 @@
 package tictactoeai;
 import java.util.ArrayList;
 public class ANN {
-    final double startinglr = .0001;
+    final double startinglr = .001;
     double lr;
     double[][] weightsIH;
     double[][] biasesIH;

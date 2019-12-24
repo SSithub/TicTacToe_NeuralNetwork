@@ -161,7 +161,7 @@ public class TictactoeAI {
                         if(counterBefore == fc.oWinCounter)
                             fc.oAnn.lr = 1*fc.oAnn.startinglr;
                         else
-                            fc.oAnn.lr = .1*fc.oAnn.startinglr;
+                            fc.oAnn.lr = 1*fc.oAnn.startinglr;
                         if(fc.quickLearn)
                             System.out.println(i+"/"+sessions);
                         fc.mutateWeights();

@@ -419,15 +419,23 @@ class Functions {
             return;
         }
         oAnn.weightsIH = oStorage.savedWeightsIH;//set values
+        oAnn.weightsH1H2 = oStorage.savedWeightsH1H2;
+        oAnn.weightsH2H3 = oStorage.savedWeightsH2H3;
         oAnn.weightsHO = oStorage.savedWeightsHO;
-        oAnn.biasesIH = oStorage.savedBiasH;
-        oAnn.biasesHO = oStorage.savedBiasO;
+        oAnn.biasesIH = oStorage.savedBiasesIH;
+        oAnn.biasesH1H2 = oStorage.savedBiasesH1H2;
+        oAnn.biasesH2H3 = oStorage.savedBiasesH2H3;
+        oAnn.biasesHO = oStorage.savedBiasesHO;
     }
     void oSave(){
         oStorage.savedWeightsIH = oAnn.weightsIH;//store values
+        oStorage.savedWeightsH1H2 = oAnn.weightsH1H2;
+        oStorage.savedWeightsH2H3 = oAnn.weightsH2H3;
         oStorage.savedWeightsHO = oAnn.weightsHO;
-        oStorage.savedBiasH = oAnn.biasesIH;
-        oStorage.savedBiasO = oAnn.biasesHO;
+        oStorage.savedBiasesIH = oAnn.biasesIH;
+        oStorage.savedBiasesH1H2 = oAnn.biasesH1H2;
+        oStorage.savedBiasesH2H3 = oAnn.biasesH2H3;
+        oStorage.savedBiasesHO = oAnn.biasesHO;
         try{
             try (FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralsettingsO.ser"); 
                 ObjectOutputStream out = new ObjectOutputStream(fileOut)) {
@@ -456,15 +464,23 @@ class Functions {
             return;
         }
         xAnn.weightsIH = xStorage.savedWeightsIH;//set values
+        xAnn.weightsH1H2 = xStorage.savedWeightsH1H2;
+        xAnn.weightsH2H3 = xStorage.savedWeightsH2H3;
         xAnn.weightsHO = xStorage.savedWeightsHO;
-        xAnn.biasesIH = xStorage.savedBiasH;
-        xAnn.biasesHO = xStorage.savedBiasO;
+        xAnn.biasesIH = xStorage.savedBiasesIH;
+        xAnn.biasesH1H2 = xStorage.savedBiasesH1H2;
+        xAnn.biasesH2H3 = xStorage.savedBiasesH2H3;
+        xAnn.biasesHO = xStorage.savedBiasesHO;
     }
     void xSave(){
         xStorage.savedWeightsIH = xAnn.weightsIH;//store values
+        xStorage.savedWeightsH1H2 = xAnn.weightsH1H2;
+        xStorage.savedWeightsH2H3 = xAnn.weightsH2H3;
         xStorage.savedWeightsHO = xAnn.weightsHO;
-        xStorage.savedBiasH = xAnn.biasesIH;
-        xStorage.savedBiasO = xAnn.biasesHO;
+        xStorage.savedBiasesIH = xAnn.biasesIH;
+        xStorage.savedBiasesH1H2 = xAnn.biasesH1H2;
+        xStorage.savedBiasesH2H3 = xAnn.biasesH2H3;
+        xStorage.savedBiasesHO = xAnn.biasesHO;
         try{
             try (FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralsettingsX.ser"); 
                 ObjectOutputStream out = new ObjectOutputStream(fileOut)) {
