@@ -382,7 +382,7 @@ class Functions {
     }
     void oTrainAIData(){
         int size = data.boardStates.size();
-        int random = (int)(Math.random()*size);
+        int random = (int)(Math.random()*size-1);
         oAnn.backpropagation(data.boardStates.get(random), data.oBoardTargets.get(random));
     }
     void oTrainAI(){

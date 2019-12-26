@@ -20,10 +20,10 @@ public class TictactoeAI {
             System.out.println(
                     "1: Play locally\n"
                     + "2: Play against AI\n"
-                    + "3: Train AI With Human\n"
-                    + "4: Train AI With Random\n"
-                    + "5: Train AI With AI\n"
-                    + "6: Train Alternating\n"
+                    + "3: AI With Human\n"
+                    + "4: AI With Random\n"
+                    + "5: AI With AI\n"
+                    + "6: Alternating\n"
                     + "7: Train With Data\n"
                     + "8: Reset Settings\n"
                     + "Anything Else: Exit");;
@@ -95,6 +95,8 @@ public class TictactoeAI {
                 }
             }
             else if("4".equals(options)){
+                System.out.println("1: Collect\nElse: Play");
+                String option2 = sc.nextLine();
                 while(fc.game){
                     System.out.println("Train how many batches of " + batches + "?");
                     int sessions = sc.nextInt();
@@ -112,7 +114,8 @@ public class TictactoeAI {
                                 if(fc.game == false)
                                     break;
                             }
-                            fc.oTrainAI();
+                            if("1".equals(option2))
+                                fc.oTrainAI();
                             fc.costSum += fc.costPerGame();
                             if(!fc.quickLearn)
                                 System.out.println(i+"/"+sessions);
@@ -120,7 +123,8 @@ public class TictactoeAI {
                         if(fc.quickLearn)
                             System.out.println(i+"/"+sessions);
 //                        fc.mutateWeights();
-                        fc.oSave();
+                        if("1".equals(option2))
+                            fc.oSave();
                     }
                     System.out.println(fc.costSum + " / " + (sessions*batches));
                     System.out.println("Average O Cost: " + fc.costSum/(sessions*batches));
