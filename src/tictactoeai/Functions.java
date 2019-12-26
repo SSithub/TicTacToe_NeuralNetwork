@@ -1,5 +1,6 @@
 package tictactoeai;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Scanner;
 class Functions {
     boolean quickLearn;
@@ -32,6 +33,25 @@ class Functions {
     private double[][] xBoard2 = new double[1][inputNodes];
     private double[][] xBoard3 = new double[1][inputNodes];
     private double[][] xBoard4 = new double[1][inputNodes];
+    Data data = new Data();
+    Functions(){
+        try{
+            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/boardStates.ser");
+            ObjectInputStream in = new ObjectInputStream(fileIn);
+            data.boardStates = (ArrayList)in.readObject();
+        }
+        catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+        try{
+            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
+            ObjectInputStream in = new ObjectInputStream(fileIn);
+            data.oBoardTargets = (ArrayList)in.readObject();
+        }
+        catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
     void clear(){
         if(!quickLearn){
 //            System.out.println("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
@@ -59,13 +79,21 @@ class Functions {
         costSum = 0;
     }
     void resetSettings(){
-        oAnn.weightsIH = Matrix.randomize(xAnn.weightsIH,2,-1);
-        oAnn.weightsHO = Matrix.randomize(xAnn.weightsHO,2,-1);
-        oAnn.biasesIH = Matrix.randomize(xAnn.biasesIH,2,-1);
-        oAnn.biasesHO = Matrix.randomize(xAnn.biasesHO,2,-1);
+        oAnn.weightsIH = Matrix.randomize(oAnn.weightsIH,2,-1);
+        oAnn.weightsH1H2 = Matrix.randomize(oAnn.weightsH1H2,2,-1);
+        oAnn.weightsH2H3 = Matrix.randomize(oAnn.weightsH2H3,2,-1);
+        oAnn.weightsHO = Matrix.randomize(oAnn.weightsHO,2,-1);
+        oAnn.biasesIH = Matrix.randomize(oAnn.biasesIH,2,-1);
+        oAnn.biasesH1H2 = Matrix.randomize(oAnn.biasesH1H2,2,-1);
+        oAnn.biasesH2H3 = Matrix.randomize(oAnn.biasesH2H3,2,-1);
+        oAnn.biasesHO = Matrix.randomize(oAnn.biasesHO,2,-1);
         xAnn.weightsIH = Matrix.randomize(xAnn.weightsIH,2,-1);
+        xAnn.weightsH1H2 = Matrix.randomize(xAnn.weightsH1H2,2,-1);
+        xAnn.weightsH2H3 = Matrix.randomize(xAnn.weightsH2H3,2,-1);
         xAnn.weightsHO = Matrix.randomize(xAnn.weightsHO,2,-1);
         xAnn.biasesIH = Matrix.randomize(xAnn.biasesIH,2,-1);
+        xAnn.biasesH1H2 = Matrix.randomize(xAnn.biasesH1H2,2,-1);
+        xAnn.biasesH2H3 = Matrix.randomize(xAnn.biasesH2H3,2,-1);
         xAnn.biasesHO = Matrix.randomize(xAnn.biasesHO,2,-1);
     }
     void printSettings(){
@@ -249,58 +277,40 @@ class Functions {
         return 0;
     }
     
-    void xTurnRandom(){
+    void turnRandom(int mark){
         board();
         boardToRow();
         while(true){
             int random = (int)(9 * Math.random());
             if(inputsArray[0][random] == 0){
                 if(random < 3){
-                    boardValues[0][random] = 1;
+                    boardValues[0][random] = mark;
                     break;
                 }
                 else if(random < 6){
-                    boardValues[1][random - 3] = 1;
+                    boardValues[1][random - 3] = mark;
                     break;
                 }
                 else if(random < 9){
-                    boardValues[2][random - 6] = 1;
+                    boardValues[2][random - 6] = mark;
                     break;
                 }
             }
         }
-        xTurnAICounter++;
-        boardToRow();
-        if(xTurnAICounter == 1)
-            xBoard1 = inputsArray;
-        else if(xTurnAICounter == 2)
-            xBoard2 = inputsArray;
-        else if(xTurnAICounter == 3)
-            xBoard3 = inputsArray;
-        else if(xTurnAICounter == 4)
-            xBoard4 = inputsArray;
-    }
-    void oTurnRandom(){
-        board();
-        boardToRow();
-        while(true){
-            int random = (int)(9 * Math.random());
-            if(inputsArray[0][random] == 0){
-                if(random < 3){
-                    boardValues[0][random] = -1;
-                    break;
-                }
-                else if(random < 6){
-                    boardValues[1][random - 3] = -1;
-                    break;
-                }
-                else if(random < 9){
-                    boardValues[2][random - 6] = -1;
-                    break;
-                }
-            }
+        if(mark == 1){
+            xTurnAICounter++;
+            boardToRow();
+            if(xTurnAICounter == 1)
+                xBoard1 = inputsArray;
+            else if(xTurnAICounter == 2)
+                xBoard2 = inputsArray;
+            else if(xTurnAICounter == 3)
+                xBoard3 = inputsArray;
+            else if(xTurnAICounter == 4)
+                xBoard4 = inputsArray;
         }
-        oTurnAICounter++;
+        else if(mark == -1){
+            oTurnAICounter++;
         boardToRow();
         if(oTurnAICounter == 1)
             oBoard1 = inputsArray;
@@ -310,10 +320,11 @@ class Functions {
             oBoard3 = inputsArray;
         else if(oTurnAICounter == 4)
             oBoard4 = inputsArray;
+        }
     }
     void oTurnAI(){
         board();
-        double max = -2;
+        double max = Double.NEGATIVE_INFINITY;
         int spot = 0;
         int columns = inputsArray[0].length;
         for(int i = 0; i < columns; i++){
@@ -321,9 +332,9 @@ class Functions {
             if(inputsArray[0][i] == 0){
                 inputsArray[0][i] = -1;
                 double[][] guess = oAnn.feedforward(inputsArray);
-//                double[][] random = new double[guess.length][guess[0].length];
-//                random = Matrix.randomize(random, .002, -.001);
-//                guess = Matrix.add(guess, random);
+                double[][] random = new double[guess.length][guess[0].length];
+                random = Matrix.randomize(random, .0002, -.0001);
+                guess = Matrix.add(guess, random);
                 if(!quickLearn)
                     Matrix.print(guess,"O guess");
                 if(guess[0][0] > max){
@@ -369,37 +380,83 @@ class Functions {
                 xBoard4[0][i] = .001;
         }
     }
+    void oTrainAIData(){
+        int size = data.boardStates.size();
+        int random = (int)(Math.random()*size);
+        oAnn.backpropagation(data.boardStates.get(random), data.oBoardTargets.get(random));
+    }
     void oTrainAI(){
         fixZeroes();
         if(win == 1){
-            double randomness = 1;
-            double[][] target = {{-1}};
-            oAnn.backpropagation(oBoard1, target, randomness);
-            oAnn.backpropagation(oBoard2, target, randomness);
-            if(oTurnAICounter > 2)
-                oAnn.backpropagation(oBoard3, target, randomness);
-            if(oTurnAICounter > 3)
-                oAnn.backpropagation(oBoard4, target, randomness);
+            double[][] target = {{-.99}};
+//            oAnn.backpropagation(oBoard1, target);
+//            oAnn.backpropagation(oBoard2, target);
+            data.boardStates.add(oBoard1);
+            data.oBoardTargets.add(target);
+            data.boardStates.add(oBoard2);
+            data.oBoardTargets.add(target);
+            if(oTurnAICounter > 2){
+//                oAnn.backpropagation(oBoard3, target);
+                data.boardStates.add(oBoard3);
+                data.oBoardTargets.add(target);
+            }
+            if(oTurnAICounter > 3){
+//                oAnn.backpropagation(oBoard4, target);
+                data.boardStates.add(oBoard4);
+                data.oBoardTargets.add(target);
+            }
         }
         else if(win == 0){
-            double randomness = 1;
             double[][] target = {{0}};
-            oAnn.backpropagation(oBoard1, target, randomness);
-            oAnn.backpropagation(oBoard2, target, randomness);
-            if(oTurnAICounter > 2)
-                oAnn.backpropagation(oBoard3, target, randomness);
-            if(oTurnAICounter > 3)
-                oAnn.backpropagation(oBoard4, target, randomness);
+//            oAnn.backpropagation(oBoard1, target);
+//            oAnn.backpropagation(oBoard2, target);
+            data.boardStates.add(oBoard1);
+            data.oBoardTargets.add(target);
+            data.boardStates.add(oBoard2);
+            data.oBoardTargets.add(target);
+            if(oTurnAICounter > 2){
+//                oAnn.backpropagation(oBoard3, target);
+                data.boardStates.add(oBoard3);
+                data.oBoardTargets.add(target);
+            }
+            if(oTurnAICounter > 3){
+//                oAnn.backpropagation(oBoard4, target);
+                data.boardStates.add(oBoard4);
+                data.oBoardTargets.add(target);
+            }
         }
         else if(win == -1){
-            double randomness = 1;
-            double[][] target = {{1}};
-            oAnn.backpropagation(oBoard1, target, randomness);
-            oAnn.backpropagation(oBoard2, target, randomness);
-            if(oTurnAICounter > 2)
-                oAnn.backpropagation(oBoard3, target, randomness);
-            if(oTurnAICounter > 3)
-                oAnn.backpropagation(oBoard4, target, randomness);
+            double[][] target = {{.99}};
+//            oAnn.backpropagation(oBoard1, target);
+//            oAnn.backpropagation(oBoard2, target);
+            data.boardStates.add(oBoard1);
+            data.oBoardTargets.add(target);
+            data.boardStates.add(oBoard2);
+            data.oBoardTargets.add(target);
+            if(oTurnAICounter > 2){
+//                oAnn.backpropagation(oBoard3, target);
+                data.boardStates.add(oBoard3);
+                data.oBoardTargets.add(target);
+            }
+            if(oTurnAICounter > 3){
+//                oAnn.backpropagation(oBoard4, target);
+                data.boardStates.add(oBoard4);
+                data.oBoardTargets.add(target);
+            }
+        }
+        try{
+            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/boardStates.ser");
+            ObjectOutputStream out = new ObjectOutputStream(fileOut);
+            out.writeObject(data.boardStates);
+        }
+        catch(IOException e){
+        }
+        try{
+            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
+            ObjectOutputStream out = new ObjectOutputStream(fileOut);
+            out.writeObject(data.oBoardTargets);
+        }
+        catch(IOException e){
         }
     }
     void oLoad(){
@@ -494,39 +551,36 @@ class Functions {
     void xTrainAI(){
         fixZeroes();
         if(win == 1){
-            double randomness = 1;
             double[][] target = {{1}};
-            xAnn.backpropagation(xBoard1, target, randomness);
-            xAnn.backpropagation(xBoard2, target, randomness);
+            xAnn.backpropagation(xBoard1, target);
+            xAnn.backpropagation(xBoard2, target);
             if(xTurnAICounter > 2)
-                xAnn.backpropagation(xBoard3, target, randomness);
+                xAnn.backpropagation(xBoard3, target);
             if(xTurnAICounter > 3)
-                xAnn.backpropagation(xBoard4, target, randomness);
+                xAnn.backpropagation(xBoard4, target);
         }
         else if(win == 0){
-            double randomness = 1;
             double[][] target = {{-1}};
-            xAnn.backpropagation(xBoard1, target, randomness);
-            xAnn.backpropagation(xBoard2, target, randomness);
+            xAnn.backpropagation(xBoard1, target);
+            xAnn.backpropagation(xBoard2, target);
             if(xTurnAICounter > 2)
-                xAnn.backpropagation(xBoard3, target, randomness);
+                xAnn.backpropagation(xBoard3, target);
             if(xTurnAICounter > 3)
-                xAnn.backpropagation(xBoard4, target, randomness);
+                xAnn.backpropagation(xBoard4, target);
         }
         else if(win == -1){
-            double randomness = 1;
             double[][] target = {{-1}};
-            xAnn.backpropagation(xBoard1, target, randomness);
-            xAnn.backpropagation(xBoard2, target, randomness);
+            xAnn.backpropagation(xBoard1, target);
+            xAnn.backpropagation(xBoard2, target);
             if(oTurnAICounter > 2)
-                xAnn.backpropagation(xBoard3, target, randomness);
+                xAnn.backpropagation(xBoard3, target);
             if(oTurnAICounter > 3)
-                xAnn.backpropagation(xBoard4, target, randomness);
+                xAnn.backpropagation(xBoard4, target);
         }
     }
     void XturnAI(){
         board();
-        double max = -2;
+        double max = Double.NEGATIVE_INFINITY;
         int spot = 0;
         int columns = inputsArray[0].length;
         for(int i = 0; i < columns; i++){

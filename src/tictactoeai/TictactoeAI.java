@@ -11,13 +11,22 @@ public class TictactoeAI {
             fc.quickLearn = true;
         else
             fc.quickLearn = false;
-        int batches = 10000;
+        int batches = 1000;
         fc.oLoad();
         fc.xLoad();
         while(true){
             fc.resetGame();
             fc.resetScores();
-            System.out.println("1: Play locally\n2: Play against AI\n3: Train AI With Human\n4: Train AI With Random\n5: Train AI With AI\n6: Train Alternating\n7: Reset Settings\nAnything Else: Exit");;
+            System.out.println(
+                    "1: Play locally\n"
+                    + "2: Play against AI\n"
+                    + "3: Train AI With Human\n"
+                    + "4: Train AI With Random\n"
+                    + "5: Train AI With AI\n"
+                    + "6: Train Alternating\n"
+                    + "7: Train With Data\n"
+                    + "8: Reset Settings\n"
+                    + "Anything Else: Exit");;
             String options = sc.nextLine();
             if("1".equals(options)){
                 System.out.println("Enter name for Player 1:");
@@ -94,7 +103,7 @@ public class TictactoeAI {
                         for(int j = 1; j <= batches; j++){
                             fc.resetGame();
                             while(fc.game){
-                                fc.xTurnRandom();
+                                fc.turnRandom(1);
                                 fc.winCheck("Random", "AI");
                                 if(fc.game == false)
                                     break;
@@ -199,7 +208,7 @@ public class TictactoeAI {
                         fc.resetGame();
                         if(j % 4 == 1){
                             while(fc.game){
-                                fc.xTurnRandom();
+                                fc.turnRandom(1);
                                 fc.winCheck("Random X", "AI O");
                                 if(fc.game == false)
                                     break;
@@ -234,11 +243,11 @@ public class TictactoeAI {
                         }
                         if(j % 4 == 3){
                             while(fc.game){
-                                fc.xTurnRandom();
+                                fc.turnRandom(1);
                                 fc.winCheck("Random X", "Random O");
                                 if(fc.game == false)
                                     break;
-                                fc.oTurnRandom();
+                                fc.turnRandom(-1);
                                 fc.winCheck("Random X", "Random O");
                                 if(fc.game == false)
                                     break;
@@ -256,7 +265,7 @@ public class TictactoeAI {
                                 fc.winCheck("AI X", "Random O");
                                 if(fc.game == false)
                                     break;
-                                fc.oTurnRandom();
+                                fc.turnRandom(-1);
                                 fc.winCheck("AI X", "Random O");
                                 if(fc.game == false)
                                     break;
@@ -294,6 +303,22 @@ public class TictactoeAI {
                 }
             }
             else if("7".equals(options)){
+                while(true){
+                    System.out.println("Train for how many batches of " + batches + "?");
+                    int sessions = sc.nextInt();
+                    sc.nextLine();
+                    for(int i = 0; i < sessions; i++)
+                        for(int j = 0; j < batches; j++){
+                            fc.oTrainAIData();
+                        }
+                    System.out.println("1: Train Again\nAnything Else: Main Menu");
+                    String choice = sc.nextLine();
+                    if(!"1".equals(choice)){
+                        break;
+                    }
+                }
+            }
+            else if("8".equals(options)){
                 while(true){
                     fc.printSettings();
                     System.out.println("Are you sure?\n1: Yes\nElse: No");

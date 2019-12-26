@@ -1,7 +1,7 @@
 package tictactoeai;
 import java.util.ArrayList;
 public class ANN {
-    final double startinglr = .001;
+    final double startinglr = .00001;
     double lr;
     double[][] weightsIH;
     double[][] biasesIH;
@@ -88,7 +88,7 @@ public class ANN {
         }
         return null;
     }
-    void backpropagation(double[][] inputs, double[][] targets, double minPercentLR){
+    void backpropagation(double[][] inputs, double[][] targets){
         if(numHiddens == 1){
             double[][] h1Z = Matrix.add(Matrix.dot(inputs, weightsIH), biasesIH);
             double[][] h1A = leakyReluActivation(h1Z, false);
@@ -98,12 +98,8 @@ public class ANN {
             double[][] doA_doZ = tanhActivation(oZ, true);
             double[][] doZ_doW = h1A;
             //chain rule to adjust the weights and biases going to the output layerwGradientsHO
-//            Matrix.print(dC_doA, "dC_doA");
-//            Matrix.print(doA_doZ, "doA_doZ");
-            double[][] bGradientsHO = Matrix.scale(lr*randomPercent(minPercentLR), Matrix.multiply(dC_doA, doA_doZ));
-//            Matrix.print(bGradientsHO, "bGradientsHO");
-            double[][] wGradientsHO = Matrix.scale(lr*randomPercent(minPercentLR), Matrix.dot(Matrix.transpose(doZ_doW), Matrix.multiply(dC_doA, doA_doZ)));
-//            Matrix.print(wGradientsHO, "wGradientsHO");
+            double[][] bGradientsHO = Matrix.scale(lr, Matrix.multiply(dC_doA, doA_doZ));
+            double[][] wGradientsHO = Matrix.scale(lr, Matrix.dot(Matrix.transpose(doZ_doW), Matrix.multiply(dC_doA, doA_doZ)));
             //add the negative gradients
             biasesHO = Matrix.subtract(biasesHO, bGradientsHO);
             weightsHO = Matrix.subtract(weightsHO, wGradientsHO);
@@ -111,8 +107,8 @@ public class ANN {
             double[][] doZ_dhA = weightsHO;
             double[][] dhA_dhZ = leakyReluActivation(h1Z, true);
             double[][] dhZ_dhW = inputs;
-            double[][] bGradientsIH = Matrix.scale(lr*randomPercent(minPercentLR), Matrix.multiply(dhA_dhZ ,Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ)))));
-            double[][] wGradientsIH = Matrix.scale(lr*randomPercent(minPercentLR), Matrix.dot(Matrix.transpose(dhZ_dhW), Matrix.multiply(dhA_dhZ, Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ))))));
+            double[][] bGradientsIH = Matrix.scale(lr, Matrix.multiply(dhA_dhZ ,Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ)))));
+            double[][] wGradientsIH = Matrix.scale(lr, Matrix.dot(Matrix.transpose(dhZ_dhW), Matrix.multiply(dhA_dhZ, Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ))))));
             //add the negative gradients
 //            Matrix.print(bGradientsIH, "bGradientsIH");
 //            Matrix.print(wGradientsIH, "wGradientsIH");
