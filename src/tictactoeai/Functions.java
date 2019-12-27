@@ -380,76 +380,61 @@ class Functions {
                 xBoard4[0][i] = .001;
         }
     }
-    void oTrainAIData(){
-        int size = data.boardStates.size();
-        int random = (int)(Math.random()*size-1);
-        oAnn.backpropagation(data.boardStates.get(random), data.oBoardTargets.get(random));
-    }
-    void oTrainAI(){
+    void oCollectData(){
         fixZeroes();
         if(win == 1){
             double[][] target = {{-.99}};
-//            oAnn.backpropagation(oBoard1, target);
-//            oAnn.backpropagation(oBoard2, target);
             data.boardStates.add(oBoard1);
             data.oBoardTargets.add(target);
             data.boardStates.add(oBoard2);
             data.oBoardTargets.add(target);
             if(oTurnAICounter > 2){
-//                oAnn.backpropagation(oBoard3, target);
                 data.boardStates.add(oBoard3);
                 data.oBoardTargets.add(target);
             }
             if(oTurnAICounter > 3){
-//                oAnn.backpropagation(oBoard4, target);
                 data.boardStates.add(oBoard4);
                 data.oBoardTargets.add(target);
             }
         }
         else if(win == 0){
             double[][] target = {{0}};
-//            oAnn.backpropagation(oBoard1, target);
-//            oAnn.backpropagation(oBoard2, target);
             data.boardStates.add(oBoard1);
             data.oBoardTargets.add(target);
             data.boardStates.add(oBoard2);
             data.oBoardTargets.add(target);
             if(oTurnAICounter > 2){
-//                oAnn.backpropagation(oBoard3, target);
                 data.boardStates.add(oBoard3);
                 data.oBoardTargets.add(target);
             }
             if(oTurnAICounter > 3){
-//                oAnn.backpropagation(oBoard4, target);
                 data.boardStates.add(oBoard4);
                 data.oBoardTargets.add(target);
             }
         }
         else if(win == -1){
             double[][] target = {{.99}};
-//            oAnn.backpropagation(oBoard1, target);
-//            oAnn.backpropagation(oBoard2, target);
             data.boardStates.add(oBoard1);
             data.oBoardTargets.add(target);
             data.boardStates.add(oBoard2);
             data.oBoardTargets.add(target);
             if(oTurnAICounter > 2){
-//                oAnn.backpropagation(oBoard3, target);
                 data.boardStates.add(oBoard3);
                 data.oBoardTargets.add(target);
             }
             if(oTurnAICounter > 3){
-//                oAnn.backpropagation(oBoard4, target);
                 data.boardStates.add(oBoard4);
                 data.oBoardTargets.add(target);
             }
         }
+    }
+    void oSaveData(){
         try{
             FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/boardStates.ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(data.boardStates);
         }
-        catch(IOException e){
+    catch(IOException e){
         }
         try{
             FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
@@ -457,6 +442,46 @@ class Functions {
             out.writeObject(data.oBoardTargets);
         }
         catch(IOException e){
+        }
+    }
+    void oTrainAIData(int size){
+        int random = (int)(Math.random()*size);
+        oAnn.backpropagation(data.boardStates.get(random), data.oBoardTargets.get(random));
+    }
+    void oTrainAI(){
+        fixZeroes();
+        if(win == 1){
+            double[][] target = {{-.99}};
+            oAnn.backpropagation(oBoard1, target);
+            oAnn.backpropagation(oBoard2, target);
+            if(oTurnAICounter > 2){
+                oAnn.backpropagation(oBoard3, target);
+            }
+            if(oTurnAICounter > 3){
+                oAnn.backpropagation(oBoard4, target);
+            }
+        }
+        else if(win == 0){
+            double[][] target = {{0}};
+            oAnn.backpropagation(oBoard1, target);
+            oAnn.backpropagation(oBoard2, target);
+            if(oTurnAICounter > 2){
+                oAnn.backpropagation(oBoard3, target);
+            }
+            if(oTurnAICounter > 3){
+                oAnn.backpropagation(oBoard4, target);
+            }
+        }
+        else if(win == -1){
+            double[][] target = {{.99}};
+            oAnn.backpropagation(oBoard1, target);
+            oAnn.backpropagation(oBoard2, target);
+            if(oTurnAICounter > 2){
+                oAnn.backpropagation(oBoard3, target);
+            }
+            if(oTurnAICounter > 3){
+                oAnn.backpropagation(oBoard4, target);
+            }
         }
     }
     void oLoad(){

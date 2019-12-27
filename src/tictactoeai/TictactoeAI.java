@@ -11,7 +11,9 @@ public class TictactoeAI {
             fc.quickLearn = true;
         else
             fc.quickLearn = false;
-        int batches = 1000;
+        int batches = 10000;
+        double decay = 0.0001/batches;
+        boolean startup = true;
         fc.oLoad();
         fc.xLoad();
         while(true){
@@ -95,13 +97,14 @@ public class TictactoeAI {
                 }
             }
             else if("4".equals(options)){
-                System.out.println("1: Collect\nElse: Play");
-                String option2 = sc.nextLine();
+                if(startup)
+                    fc.oAnn.lr = 0;
                 while(fc.game){
                     System.out.println("Train how many batches of " + batches + "?");
                     int sessions = sc.nextInt();
                     sc.nextLine();
                     for(int i = 1; i <= sessions; i++){
+                        double cost = 0;
                         for(int j = 1; j <= batches; j++){
                             fc.resetGame();
                             while(fc.game){
@@ -114,17 +117,22 @@ public class TictactoeAI {
                                 if(fc.game == false)
                                     break;
                             }
-                            if("1".equals(option2))
-                                fc.oTrainAI();
+                            fc.oTrainAI();
                             fc.costSum += fc.costPerGame();
+                            cost += fc.costPerGame();
                             if(!fc.quickLearn)
                                 System.out.println(i+"/"+sessions);
                         }
-                        if(fc.quickLearn)
+                        startup = false;
+//                        fc.oAnn.lr = fc.oAnn.startinglr;
+                        fc.oAnn.lr = fc.oAnn.startinglr * Math.pow((cost/batches), 2);
+                        System.out.println(fc.oAnn.lr);
+                        if(fc.quickLearn){
                             System.out.println(i+"/"+sessions);
+                            System.out.println("Cost for batch: " + cost/batches);
+                        }
 //                        fc.mutateWeights();
-                        if("1".equals(option2))
-                            fc.oSave();
+                        fc.oSave();
                     }
                     System.out.println(fc.costSum + " / " + (sessions*batches));
                     System.out.println("Average O Cost: " + fc.costSum/(sessions*batches));
@@ -153,6 +161,7 @@ public class TictactoeAI {
                     sc.nextLine();
                     for(int i = 1; i <= sessions; i++){
                         int counterBefore = fc.oWinCounter;
+                        double cost = 0;
                         for(int j = 1; j <= batches; j++){
                             fc.resetGame();
                             while(fc.game){
@@ -167,6 +176,7 @@ public class TictactoeAI {
                             }
                             fc.oTrainAI();
                             fc.xTrainAI();
+                            cost += fc.costPerGame();
                             fc.costSum += fc.costPerGame();
                             if(!fc.quickLearn)
                                 System.out.println(i+"/"+sessions);
@@ -174,10 +184,12 @@ public class TictactoeAI {
                         if(counterBefore == fc.oWinCounter)
                             fc.oAnn.lr = 1*fc.oAnn.startinglr;
                         else
-                            fc.oAnn.lr = 1*fc.oAnn.startinglr;
-                        if(fc.quickLearn)
+                            fc.oAnn.lr = .1*fc.oAnn.startinglr;
+                        if(fc.quickLearn){
+                            System.out.println("Cost for batch: " + (cost/batches));
                             System.out.println(i+"/"+sessions);
-                        fc.mutateWeights();
+                        }
+//                        fc.mutateWeights();
                         fc.oSave();
                         fc.xSave();
                     }
@@ -307,19 +319,91 @@ public class TictactoeAI {
                 }
             }
             else if("7".equals(options)){
+                int size = fc.data.boardStates.size();
                 while(true){
-                    System.out.println("Train for how many batches of " + batches + "?");
-                    int sessions = sc.nextInt();
-                    sc.nextLine();
-                    for(int i = 0; i < sessions; i++)
-                        for(int j = 0; j < batches; j++){
-                            fc.oTrainAIData();
+                    fc.resetGame();
+                    fc.resetScores();
+                    System.out.println("1: Train With Data\n2: Collect Data");
+                    String option2 = sc.nextLine();
+                    if("1".equals(option2)){
+                        System.out.println("Train for how many batches of " + batches + "?");
+                        int sessions = sc.nextInt();
+                        sc.nextLine();
+                        for(int i = 1; i <= sessions; i++){
+                            for(int j = 1; j <= batches; j++){
+                                fc.oTrainAIData(size);
+                                fc.oSave();
+                            }
+                            System.out.println(i+"/"+sessions);
                         }
-                    System.out.println("1: Train Again\nAnything Else: Main Menu");
-                    String choice = sc.nextLine();
-                    if(!"1".equals(choice)){
-                        break;
+                        for(int i = 1; i <= batches; i++){
+                            fc.resetGame();
+                            while(fc.game){
+                                fc.turnRandom(1);
+                                fc.winCheck("Random", "AI");
+                                if(fc.game == false)
+                                    break;
+                                fc.oTurnAI();
+                                fc.winCheck("Random", "AI");
+                                if(fc.game == false)
+                                    break;
+                            }
+                            fc.costSum += fc.costPerGame();
+                            if(!fc.quickLearn)
+                                System.out.println(i+"/"+batches);
+                        }
+                        System.out.println(fc.costSum + " / " + (batches));
+                        System.out.println("Average O Cost: " + fc.costSum/(batches));
+                        System.out.println("X's games won: " + fc.xWinCounter);
+                        System.out.println("O's games won: " + fc.oWinCounter);
+                        System.out.println("Win/Loss Ratio: " + (double)fc.oWinCounter / fc.xWinCounter);
+                        System.out.println("1: Train Again\nAnything Else: Main Menu");
+                        String choice = sc.nextLine();
+                        if(!"1".equals(choice)){
+                            break;
+                        }
+                        fc.resetGame();
+                        fc.resetScores();
                     }
+                    else if("2".equals(option2)){
+                        System.out.println("Train how many batches of " + batches + "?");
+                        int sessions = sc.nextInt();
+                        sc.nextLine();
+                        for(int i = 1; i <= sessions; i++){
+                            for(int j = 1; j <= batches; j++){
+                                fc.resetGame();
+                                while(fc.game){
+                                    fc.turnRandom(1);
+                                    fc.winCheck("Random", "AI");
+                                    if(fc.game == false)
+                                        break;
+                                    fc.oTurnAI();
+                                    fc.winCheck("Random", "AI");
+                                    if(fc.game == false)
+                                        break;
+                                }
+                                fc.oCollectData();
+                                fc.costSum += fc.costPerGame();
+                                if(!fc.quickLearn)
+                                    System.out.println(i+"/"+sessions);
+                            }
+                            if(fc.quickLearn)
+                                System.out.println(i+"/"+sessions);
+//                                    fc.mutateWeights();
+                        }
+                        fc.oSaveData();
+                        System.out.println(fc.costSum + " / " + (sessions*batches));
+                        System.out.println("Average O Cost: " + fc.costSum/(sessions*batches));
+                        System.out.println("X's games won: " + fc.xWinCounter);
+                        System.out.println("O's games won: " + fc.oWinCounter);
+                        System.out.println("Win/Loss Ratio: " + (double)fc.oWinCounter / fc.xWinCounter);
+                        System.out.println("1: Train Again\nAnything Else: Main Menu");
+                        String choice = sc.nextLine();
+                        if(!"1".equals(choice))
+                            break;
+                    }
+                    fc.resetGame();
+                    fc.resetScores();
                 }
             }
             else if("8".equals(options)){
