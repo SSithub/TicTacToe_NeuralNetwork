@@ -1,7 +1,7 @@
 package tictactoeai;
 import java.util.ArrayList;
 public class ANN {
-    final double startinglr = .001;
+    final double startinglr = .0001;
     double lr;
     double[][] weightsIH;
     double[][] biasesIH;
@@ -97,7 +97,7 @@ public class ANN {
             double[][] dC_doA = Matrix.subtract(oA, targets);
             double[][] doA_doZ = tanhActivation(oZ, true);
             double[][] doZ_doW = h1A;
-            //chain rule to adjust the weights and biases going to the output layerwGradientsHO
+            //chain rule to adjust the weights and biases going to the output layer
             double[][] bGradientsHO = Matrix.scale(lr, Matrix.multiply(dC_doA, doA_doZ));
             double[][] wGradientsHO = Matrix.scale(lr, Matrix.dot(Matrix.transpose(doZ_doW), Matrix.multiply(dC_doA, doA_doZ)));
             //add the negative gradients
@@ -110,8 +110,6 @@ public class ANN {
             double[][] bGradientsIH = Matrix.scale(lr, Matrix.multiply(dhA_dhZ ,Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ)))));
             double[][] wGradientsIH = Matrix.scale(lr, Matrix.dot(Matrix.transpose(dhZ_dhW), Matrix.multiply(dhA_dhZ, Matrix.transpose(Matrix.dot(doZ_dhA, Matrix.multiply(dC_doA, doA_doZ))))));
             //add the negative gradients
-//            Matrix.print(bGradientsIH, "bGradientsIH");
-//            Matrix.print(wGradientsIH, "wGradientsIH");
             biasesIH = Matrix.subtract(biasesIH, bGradientsIH);
             weightsIH = Matrix.subtract(weightsIH, wGradientsIH);
         }

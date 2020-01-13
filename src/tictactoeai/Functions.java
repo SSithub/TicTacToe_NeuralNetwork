@@ -21,7 +21,7 @@ class Functions {
     double costSum;
     int xWinCounter = 0;
     int oWinCounter = 0;
-    ANN oAnn = new ANN(inputNodes, hidden1Nodes, hidden2Nodes, hidden3Nodes, outputNodes);
+    NNest.NN oAnn = new NNest().new NN(.0001,"leakyrelu","tanh","quadratic",9,512,512,1);
     Storage oStorage = new Storage();
     private double[][] oBoard1 = new double[1][inputNodes];
     private double[][] oBoard2 = new double[1][inputNodes];
@@ -35,22 +35,22 @@ class Functions {
     private double[][] xBoard4 = new double[1][inputNodes];
     Data data = new Data();
     Functions(){
-        try{
-            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/boardStates.ser");
-            ObjectInputStream in = new ObjectInputStream(fileIn);
-            data.boardStates = (ArrayList)in.readObject();
-        }
-        catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        try{
-            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
-            ObjectInputStream in = new ObjectInputStream(fileIn);
-            data.oBoardTargets = (ArrayList)in.readObject();
-        }
-        catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+//        try{
+//            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/boardStates.ser");
+//            ObjectInputStream in = new ObjectInputStream(fileIn);
+//            data.boardStates = (ArrayList)in.readObject();
+//        }
+//        catch (IOException | ClassNotFoundException e) {
+//            e.printStackTrace();
+//        }
+//        try{
+//            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
+//            ObjectInputStream in = new ObjectInputStream(fileIn);
+//            data.oBoardTargets = (ArrayList)in.readObject();
+//        }
+//        catch (IOException | ClassNotFoundException e) {
+//            e.printStackTrace();
+//        }
     }
     void clear(){
         if(!quickLearn){
@@ -79,48 +79,48 @@ class Functions {
         costSum = 0;
     }
     void resetSettings(){
-        oAnn.weightsIH = Matrix.randomize(oAnn.weightsIH,2,-1);
-        oAnn.weightsH1H2 = Matrix.randomize(oAnn.weightsH1H2,2,-1);
-        oAnn.weightsH2H3 = Matrix.randomize(oAnn.weightsH2H3,2,-1);
-        oAnn.weightsHO = Matrix.randomize(oAnn.weightsHO,2,-1);
-        oAnn.biasesIH = Matrix.randomize(oAnn.biasesIH,2,-1);
-        oAnn.biasesH1H2 = Matrix.randomize(oAnn.biasesH1H2,2,-1);
-        oAnn.biasesH2H3 = Matrix.randomize(oAnn.biasesH2H3,2,-1);
-        oAnn.biasesHO = Matrix.randomize(oAnn.biasesHO,2,-1);
-        xAnn.weightsIH = Matrix.randomize(xAnn.weightsIH,2,-1);
-        xAnn.weightsH1H2 = Matrix.randomize(xAnn.weightsH1H2,2,-1);
-        xAnn.weightsH2H3 = Matrix.randomize(xAnn.weightsH2H3,2,-1);
-        xAnn.weightsHO = Matrix.randomize(xAnn.weightsHO,2,-1);
-        xAnn.biasesIH = Matrix.randomize(xAnn.biasesIH,2,-1);
-        xAnn.biasesH1H2 = Matrix.randomize(xAnn.biasesH1H2,2,-1);
-        xAnn.biasesH2H3 = Matrix.randomize(xAnn.biasesH2H3,2,-1);
-        xAnn.biasesHO = Matrix.randomize(xAnn.biasesHO,2,-1);
+//        oAnn.weightsIH = Matrix.randomize(oAnn.weightsIH,2,-1);
+//        oAnn.weightsH1H2 = Matrix.randomize(oAnn.weightsH1H2,2,-1);
+//        oAnn.weightsH2H3 = Matrix.randomize(oAnn.weightsH2H3,2,-1);
+//        oAnn.weightsHO = Matrix.randomize(oAnn.weightsHO,2,-1);
+//        oAnn.biasesIH = Matrix.randomize(oAnn.biasesIH,2,-1);
+//        oAnn.biasesH1H2 = Matrix.randomize(oAnn.biasesH1H2,2,-1);
+//        oAnn.biasesH2H3 = Matrix.randomize(oAnn.biasesH2H3,2,-1);
+//        oAnn.biasesHO = Matrix.randomize(oAnn.biasesHO,2,-1);
+//        xAnn.weightsIH = Matrix.randomize(xAnn.weightsIH,2,-1);
+//        xAnn.weightsH1H2 = Matrix.randomize(xAnn.weightsH1H2,2,-1);
+//        xAnn.weightsH2H3 = Matrix.randomize(xAnn.weightsH2H3,2,-1);
+//        xAnn.weightsHO = Matrix.randomize(xAnn.weightsHO,2,-1);
+//        xAnn.biasesIH = Matrix.randomize(xAnn.biasesIH,2,-1);
+//        xAnn.biasesH1H2 = Matrix.randomize(xAnn.biasesH1H2,2,-1);
+//        xAnn.biasesH2H3 = Matrix.randomize(xAnn.biasesH2H3,2,-1);
+//        xAnn.biasesHO = Matrix.randomize(xAnn.biasesHO,2,-1);
     }
     void printSettings(){
-        Matrix.print(xAnn.weightsIH,"XweightsIH");
-        Matrix.print(xAnn.biasesIH,"XbiasesIH");
-        if(xAnn.numHiddens >= 2){
-            Matrix.print(xAnn.weightsH1H2,"XweightsH1H2");
-            Matrix.print(xAnn.biasesH1H2,"XbiasesH1H2");
-        }
-        if(xAnn.numHiddens >= 3){
-            Matrix.print(xAnn.weightsH2H3,"XweightsH2H3");
-            Matrix.print(xAnn.biasesH2H3,"XbiasesH2H3");
-        }
-        Matrix.print(xAnn.weightsHO,"XweightsHO");
-        Matrix.print(xAnn.biasesHO,"XbiasesHO");
-        Matrix.print(oAnn.weightsIH,"OweightsIH");
-        Matrix.print(oAnn.biasesIH,"ObiasesIH");
-        if(oAnn.numHiddens >= 2){
-            Matrix.print(oAnn.weightsH1H2,"OweightsH1H2");
-            Matrix.print(oAnn.biasesH1H2,"ObiasesH1H2");
-        }
-        if(oAnn.numHiddens >= 3){
-            Matrix.print(oAnn.weightsH2H3,"OweightsH2H3");
-            Matrix.print(oAnn.biasesH2H3,"ObiasesH2H3");
-        }
-        Matrix.print(oAnn.weightsHO,"OweightsHO");
-        Matrix.print(oAnn.biasesHO,"ObiasesHO");
+//        Matrix.print(xAnn.weightsIH,"XweightsIH");
+//        Matrix.print(xAnn.biasesIH,"XbiasesIH");
+//        if(xAnn.numHiddens >= 2){
+//            Matrix.print(xAnn.weightsH1H2,"XweightsH1H2");
+//            Matrix.print(xAnn.biasesH1H2,"XbiasesH1H2");
+//        }
+//        if(xAnn.numHiddens >= 3){
+//            Matrix.print(xAnn.weightsH2H3,"XweightsH2H3");
+//            Matrix.print(xAnn.biasesH2H3,"XbiasesH2H3");
+//        }
+//        Matrix.print(xAnn.weightsHO,"XweightsHO");
+//        Matrix.print(xAnn.biasesHO,"XbiasesHO");
+//        Matrix.print(oAnn.weightsIH,"OweightsIH");
+//        Matrix.print(oAnn.biasesIH,"ObiasesIH");
+//        if(oAnn.numHiddens >= 2){
+//            Matrix.print(oAnn.weightsH1H2,"OweightsH1H2");
+//            Matrix.print(oAnn.biasesH1H2,"ObiasesH1H2");
+//        }
+//        if(oAnn.numHiddens >= 3){
+//            Matrix.print(oAnn.weightsH2H3,"OweightsH2H3");
+//            Matrix.print(oAnn.biasesH2H3,"ObiasesH2H3");
+//        }
+//        Matrix.print(oAnn.weightsHO,"OweightsHO");
+//        Matrix.print(oAnn.biasesHO,"ObiasesHO");
     }
     private void boardToRow(){
         int k = 0;
@@ -262,18 +262,18 @@ class Functions {
             }
     }
     double costPerGame(){
-        boardToRow();
-        if(win == 1){
-            double[][] target = {{-1}};
-            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;
-        }
-        else if(win == 0){
-            double[][] target = {{0}};
-            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;        }
-        else if(win == -1){
-            double[][] target = {{1}};
-            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;
-        }
+//        boardToRow();
+//        if(win == 1){
+//            double[][] target = {{-1}};
+//            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;
+//        }
+//        else if(win == 0){
+//            double[][] target = {{0}};
+//            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;        }
+//        else if(win == -1){
+//            double[][] target = {{1}};
+//            return ( oAnn.costTotal(oBoard1, target) + oAnn.costTotal(oBoard2, target) + oAnn.costTotal(oBoard3, target) + oAnn.costTotal(oBoard4, target) )/ oTurnAICounter;
+//        }
         return 0;
     }
     
@@ -332,9 +332,9 @@ class Functions {
             if(inputsArray[0][i] == 0){
                 inputsArray[0][i] = -1;
                 double[][] guess = oAnn.feedforward(inputsArray);
-                double[][] random = new double[guess.length][guess[0].length];
-                random = Matrix.randomize(random, .0002, -.0001);
-                guess = Matrix.add(guess, random);
+//                double[][] random = new double[guess.length][guess[0].length];
+//                random = Matrix.randomize(random, .0002, -.0001);
+//                guess = Matrix.add(guess, random);
                 if(!quickLearn)
                     Matrix.print(guess,"O guess");
                 if(guess[0][0] > max){
@@ -434,7 +434,7 @@ class Functions {
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(data.boardStates);
         }
-    catch(IOException e){
+        catch(IOException e){
         }
         try{
             FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/oBoardTargets.ser");
@@ -488,7 +488,7 @@ class Functions {
         try{
             try(FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/neuralsettingsO.ser");//find file in current directory
                 ObjectInputStream in = new ObjectInputStream(fileIn)){//read file for object
-                oStorage = (Storage)in.readObject();//import object
+                oAnn.network = (ArrayList)in.readObject();//import object
             }
         }
         catch (IOException e) {
@@ -500,28 +500,12 @@ class Functions {
                    e.printStackTrace();
             return;
         }
-        oAnn.weightsIH = oStorage.savedWeightsIH;//set values
-        oAnn.weightsH1H2 = oStorage.savedWeightsH1H2;
-        oAnn.weightsH2H3 = oStorage.savedWeightsH2H3;
-        oAnn.weightsHO = oStorage.savedWeightsHO;
-        oAnn.biasesIH = oStorage.savedBiasesIH;
-        oAnn.biasesH1H2 = oStorage.savedBiasesH1H2;
-        oAnn.biasesH2H3 = oStorage.savedBiasesH2H3;
-        oAnn.biasesHO = oStorage.savedBiasesHO;
     }
     void oSave(){
-        oStorage.savedWeightsIH = oAnn.weightsIH;//store values
-        oStorage.savedWeightsH1H2 = oAnn.weightsH1H2;
-        oStorage.savedWeightsH2H3 = oAnn.weightsH2H3;
-        oStorage.savedWeightsHO = oAnn.weightsHO;
-        oStorage.savedBiasesIH = oAnn.biasesIH;
-        oStorage.savedBiasesH1H2 = oAnn.biasesH1H2;
-        oStorage.savedBiasesH2H3 = oAnn.biasesH2H3;
-        oStorage.savedBiasesHO = oAnn.biasesHO;
         try{
             try (FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralsettingsO.ser"); 
                 ObjectOutputStream out = new ObjectOutputStream(fileOut)) {
-                out.writeObject(oStorage);
+                out.writeObject(oAnn.network);
             }
 //           System.out.println("Stored neural network settings in /neuralsettingsO.ser\n");
         }
@@ -639,7 +623,7 @@ class Functions {
             xBoard4 = inputsArray;
     }
     void mutateWeights(){
-        oAnn.mutate();
+//        oAnn.mutate();
         xAnn.mutate();
     }
 }

@@ -16,6 +16,9 @@ public class TictactoeAI {
         boolean startup = true;
         fc.oLoad();
         fc.xLoad();
+        new Thread(() ->
+                NNest.launch(NNest.class)
+        ).start();
         while(true){
             fc.resetGame();
             fc.resetScores();
@@ -97,8 +100,8 @@ public class TictactoeAI {
                 }
             }
             else if("4".equals(options)){
-                if(startup)
-                    fc.oAnn.lr = 0;
+//                if(startup)
+//                    fc.oAnn.lr = 0;
                 while(fc.game){
                     System.out.println("Train how many batches of " + batches + "?");
                     int sessions = sc.nextInt();
@@ -123,14 +126,17 @@ public class TictactoeAI {
                             if(!fc.quickLearn)
                                 System.out.println(i+"/"+sessions);
                         }
-                        startup = false;
+//                        startup = false;
 //                        fc.oAnn.lr = fc.oAnn.startinglr;
-                        fc.oAnn.lr = fc.oAnn.startinglr * Math.pow((cost/batches), 2);
-                        System.out.println(fc.oAnn.lr);
+//                        fc.oAnn.lr = fc.oAnn.startinglr * Math.pow((cost/batches), 2);
+//                        System.out.println(fc.oAnn.lr);
                         if(fc.quickLearn){
                             System.out.println(i+"/"+sessions);
-                            System.out.println("Cost for batch: " + cost/batches);
+//                            System.out.println("Cost for batch: " + cost/batches);
                         }
+                        System.out.println("X's games won: " + fc.xWinCounter);
+                        System.out.println("O's games won: " + fc.oWinCounter);
+                        fc.resetScores();
 //                        fc.mutateWeights();
                         fc.oSave();
                     }
@@ -181,13 +187,16 @@ public class TictactoeAI {
                             if(!fc.quickLearn)
                                 System.out.println(i+"/"+sessions);
                         }
-                        if(counterBefore == fc.oWinCounter)
-                            fc.oAnn.lr = 1*fc.oAnn.startinglr;
-                        else
-                            fc.oAnn.lr = .1*fc.oAnn.startinglr;
+//                        if(counterBefore == fc.oWinCounter)
+//                            fc.oAnn.lr = 1*fc.oAnn.startinglr;
+//                        else
+//                            fc.oAnn.lr = .1*fc.oAnn.startinglr;
                         if(fc.quickLearn){
-                            System.out.println("Cost for batch: " + (cost/batches));
+//                            System.out.println("Cost for batch: " + (cost/batches));
                             System.out.println(i+"/"+sessions);
+                            System.out.println("X's games won: " + fc.xWinCounter);
+                            System.out.println("O's games won: " + fc.oWinCounter);
+                            fc.resetScores();
                         }
 //                        fc.mutateWeights();
                         fc.oSave();
