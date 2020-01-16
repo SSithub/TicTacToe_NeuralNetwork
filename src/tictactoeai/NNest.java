@@ -143,8 +143,8 @@ public class NNest extends Application implements Serializable{
                 NNest.increment++;
                 costFunction.apply(copy(A.get(NETWORKSIZE)), targets).apply(false);//Update the cost to anneal the learning rate
                 globalCost = cost;
-                //Square Root Annealing
-                double stabilizer = lr*Math.sqrt(cost)* Math.pow(10, -NETWORKSIZE+2+(NETWORKSIZE*Math.E*(.02209*NETWORKSIZE-.02)));
+                //Annealing
+                double stabilizer = lr*Math.sqrt(cost)* Math.pow(10, -NETWORKSIZE+2+(NETWORKSIZE*Math.E*((.02+.0002*NETWORKSIZE)*NETWORKSIZE-(.02+.0002*NETWORKSIZE))));
                 bGradients = scale(stabilizer,dC_dZ);
                 wGradients = scale(stabilizer,dC_dW);
                 network.get(i-1).biases = subtract(network.get(i-1).biases,bGradients);

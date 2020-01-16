@@ -1,5 +1,6 @@
 package tictactoeai;
 import java.util.Scanner;
+import java.util.function.Consumer;
 public class TictactoeSupervised {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -7,7 +8,11 @@ public class TictactoeSupervised {
         int sessions = 1000;
         g.load();
         boolean flag = true;
+        String player;
+        Consumer<Integer> turn1;
+        Consumer<Integer> turn2;
         while(flag){
+            g.quickLearn = false;
             g.resetGame();
             System.out.println("1: How To Play"
                     + "\n2: Play Local"
@@ -34,18 +39,39 @@ public class TictactoeSupervised {
                     break;
                 case "3":
                     while(true){
-                        g.playerTurn(1);
-                        if(g.game != 0){
-                            break;
+                        System.out.println("Play as Player 1 or 2?");
+                        player = sc.nextLine();
+                        if(!player.equals("1") && !player.equals("2")){
+                            System.out.println("Not an option...");
+                            continue;
                         }
-                        g.aiTurn(2);
-                        if(g.game != 0){
-                            break;
+                        break;
+                    }
+                    turn1 = player.equals("1") ? (x) -> g.playerTurn(x) : (x) -> g.aiTurn(x);
+                    turn2 = player.equals("2") ? (x) -> g.playerTurn(x) : (x) -> g.aiTurn(x);
+                    game:while(true){
+                        while(true){
+                            turn1.accept(1);
+                            if(g.game != 0){
+                                break;
+                            }
+                            turn2.accept(2);
+                            if(g.game != 0){
+                                break;
+                            }
                         }
+                        System.out.println("1: Again\nElse: Main Menu");
+                        String choice = sc.nextLine();
+                        if(!choice.equals("1"))
+                            break;
+                        g.resetGame();
                     }
                     break;
                 case "4":
-                    int times;
+                    System.out.println("Disable printing?");
+                    String fast = sc.nextLine();
+                    g.quickLearn = fast.equalsIgnoreCase("1") ? true : fast.equalsIgnoreCase("y");
+                    long times;
                     new Thread(() -> {
                         NNest.launch(NNest.class);
                     }).start();
@@ -53,7 +79,7 @@ public class TictactoeSupervised {
                         while(true){
                             System.out.println("Train for " + sessions + " sessions how many times?");
                             try{
-                                times = sc.nextInt();
+                                times = sc.nextLong();
                                 sc.nextLine();
                                 break;
                             }

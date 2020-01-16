@@ -3,7 +3,7 @@ import java.util.*;
 import java.io.*;
 public class Game {
     boolean quickLearn = false;
-    NNest.NN nn = new NNest().new NN(.0001,"leakyrelu","softmax","log",18,12000,1);
+    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,200,1);
     Scanner sc = new Scanner(System.in);
     private double[][] board = {{0,0,0},
                                 {0,0,0},
@@ -16,9 +16,11 @@ public class Game {
     int x;
     int y;
     double max;
+    double min;
     double output;
     double[][] inputs;
-    ArrayList<double[][]> states = new ArrayList<>();
+    double[][] target = new double[1][1];
+    double epsilon = .3;
     ArrayList<double[][]> actions = new ArrayList<>();
     public void save(){
         try{
@@ -41,10 +43,11 @@ public class Game {
     }
     public void resetGame(){
         game = 0;
-        for(int i = 0; i < board[0].length; i++){
-            board[0][i] = 0;
+        for(int i = 0; i < 3; i++){
+            for(int j = 0; j < 3; j++){
+                board[i][j] = 0;
+            }
         }
-        states.clear();
         actions.clear();
     }
     public void resetScores(){
@@ -75,8 +78,7 @@ public class Game {
     public void printTrainStats(){
         System.out.println("\nX wins: " + winsX
                 + "\nO wins: " + winsO
-                + "\nTies: " + ties
-                + "\nCost: " + nn.cost);
+                + "\nTies: " + ties);
     }
     public void playerTurn(int mark){
         printBoard();
@@ -167,7 +169,7 @@ public class Game {
         }
         return result;
     }
-    private void toBoard(int mark){//Turns s 1D location to a 2D location
+    private void toBoard(){//Turns s 1D location to a 2D location
         if(spot < 3){
             y = 0;
             x = spot;
@@ -181,17 +183,6 @@ public class Game {
             x = spot - 6;
         }
     }
-    private void toSpot(int row, int column){//Turns a 2D location to a 1D location
-        if(row < 1){
-            spot = column;
-        }
-        else if(row < 2){
-            spot = column + 3;
-        }
-        else if(row < 3){
-            spot = column + 6;
-        }
-    }
     private double[][] toInputs(double[][] in){
         double[][] result = new double[1][18];
         int k = 0;
@@ -200,55 +191,29 @@ public class Game {
                 result[0][k] = 0;
                 k++;
                 result[0][k] = 0;
+                k++;
             }
             else if(in[0][i] == 1){
                 result[0][k] = 1;
                 k++;
                 result[0][k] = 0;
+                k++;
             }
             else if(in[0][i] == 2){
                 result[0][k] = 0;
                 k++;
                 result[0][k] = 1;
+                k++;
             }
         }
         return result;
     }
     public void aiTurn(int mark){
         printBoard();
-        for(int i = 0; i < 9; i++){//Iterate over each square
-            if(toRow()[0][i] == 0){
-                max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
-                inputs = toRow();
-                inputs[0][i] = mark;
-                output = nn.feedforward(toInputs(inputs))[0][0];
-                if(output > max){
-                    max = output;
-                    spot = i;//Saving the location in row form
-                }
-            }
-        }
-        toBoard(mark);
-        board[y][x] = mark;
-        win(mark);
-    }
-    public void aiTrain(int mark){
-        printBoard();
-        if(Math.random() < .2){
-            while(true){
-                int r1 = (int)(Math.random()*3);
-                int r2 = (int)(Math.random()*3);
-                if(board[r1][r2] == 0){
-                    board[r1][r2] = mark;
-                    actions.add(toRow());
-                    break;
-                }
-            }
-        }
-        else{
+        if(mark == 1){//Maximizing
+            max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
             for(int i = 0; i < 9; i++){//Iterate over each square
                 if(toRow()[0][i] == 0){
-                    max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
                     inputs = toRow();
                     inputs[0][i] = mark;
                     output = nn.feedforward(toInputs(inputs))[0][0];
@@ -259,51 +224,95 @@ public class Game {
                 }
             }
         }
+        else if(mark == 2){//Minimizing
+            min = Double.POSITIVE_INFINITY;//Exaggerated for clarity
+            for(int i = 0; i < 9; i++){//Iterate over each square
+                if(toRow()[0][i] == 0){
+                    inputs = toRow();
+                    inputs[0][i] = mark;
+                    output = nn.feedforward(toInputs(inputs))[0][0];
+//                    System.out.println(output);
+                    if(output < min){
+                        min = output;
+                        spot = i;//Saving the location in row form
+                    }
+                }
+            }
+        }
+        toBoard();
+        board[y][x] = mark;
+        win(mark);
+    }
+    public void aiTrain(int mark){
+        printBoard();
+        if(Math.random() < epsilon){//Exploration rate
+            while(true){
+                int r1 = (int)(Math.random()*3);
+                int r2 = (int)(Math.random()*3);
+                if(board[r1][r2] == 0){
+                    board[r1][r2] = mark;
+                    inputs = toRow();
+                    actions.add(toInputs(inputs));
+                    break;
+                }
+            }
+        }
+        else{
+            if(mark == 1){
+                max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
+                for(int i = 0; i < 9; i++){//Iterate over each square
+                    if(toRow()[0][i] == 0){
+                        inputs = toRow();
+                        inputs[0][i] = mark;
+                        output = nn.feedforward(toInputs(inputs))[0][0];
+    //                    System.out.println(output);
+                        if(output > max){
+                            max = output;
+                            spot = i;//Saving the location in row form
+                        }
+                    }
+                }
+            }
+            else if(mark == 2){
+                min = Double.POSITIVE_INFINITY;//Exaggerated for clarity
+                for(int i = 0; i < 9; i++){//Iterate over each square
+                    if(toRow()[0][i] == 0){
+                        inputs = toRow();
+                        inputs[0][i] = mark;
+                        output = nn.feedforward(toInputs(inputs))[0][0];
+                        if(output < min){
+                            min = output;
+                            spot = i;//Saving the location in row form
+                        }
+                    }
+                }
+            }
+            inputs = toRow();
+            inputs[0][spot] = mark;
+            actions.add(toInputs(inputs));
+            toBoard();
+            board[y][x] = mark;
+        }
         win(mark);
     }
     public void aiLearn(){
-        int size = states.size();
+        int size = actions.size();
         if(game == 1){
-            for(int i = 0; i < size; i += 2){//states on x's turn is on even indexes and 0
-                double[][] action = nn.create(1, 9, 0);
-                action[0][actions.get(i)] = 1;
-                nn.backpropagation(states.get(i), action);
-            }
-            for(int i = 1; i < size; i += 2){//states on o's turn is on odd indexes
-                double[][] action = nn.create(1, 9, 0);
-                while(true){
-                    int random = (int)(Math.random()*9);
-                    if(random != actions.get(i)){
-                        action[0][random] = 1;
-                        break;
-                    }
-                }
-                nn.backpropagation(states.get(i), action);
+            target[0][0] = .99;
+            for(int i = 0; i < size; i++){
+                nn.backpropagation(actions.get(i), target);
             }
         }
         else if(game == 2){
-            for(int i = 1; i < size; i += 2){//states on o's turn is on odd indexes
-                double[][] action = nn.create(1, 9, 0);
-                action[0][actions.get(i)] = 1;
-                nn.backpropagation(states.get(i), action);
-            }
-            for(int i = 0; i < size; i += 2){//states on x's turn is on even indexes and 0
-                double[][] action = nn.create(1, 9, 0);
-                while(true){
-                    int random = (int)(Math.random()*9);
-                    if(random != actions.get(i)){
-                        action[0][random] = 1;
-                        break;
-                    }
-                }
-                nn.backpropagation(states.get(i), action);
+            target[0][0] = .01;
+            for(int i = 0; i < size; i++){
+                nn.backpropagation(actions.get(i), target);
             }
         }
         else if(game == 3){
+            target[0][0] = .5;
             for(int i = 0; i < size; i++){
-                double[][] action = nn.create(1, 9, 0);
-                action[0][actions.get(i)] = 1;
-                nn.backpropagation(states.get(i), action);
+                nn.backpropagation(actions.get(i), target);
             }
         }
     }
