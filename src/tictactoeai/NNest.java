@@ -9,6 +9,7 @@ import javafx.scene.chart.*;
 import javafx.stage.Stage;
 public class NNest extends Application implements Serializable{
     volatile static double globalCost;
+    volatile static int increment = 0;
     public class NN implements Serializable{
         private class Layer implements Serializable{
             double[][] weights;
@@ -81,7 +82,15 @@ public class NNest extends Application implements Serializable{
             }
             NETWORKSIZE = network.size();
         }
-        double[][] feedforward(double[][] inputs){
+        public String getNetworkSize(){
+            String networkLayers = "";
+            for(Layer layer : network){
+                networkLayers += layer.weights.length + ",";
+            }
+            networkLayers += network.get(NETWORKSIZE-1).weights[0].length;
+            return networkLayers;
+        }
+        public double[][] feedforward(double[][] inputs){
             double[][] outputs = inputs;
             for(int i = 0; i < NETWORKSIZE-1; i++){//Feed the inputs through the hidden layers
                 outputs = activationHiddens.apply(add(dot(outputs,network.get(i).weights),network.get(i).biases),false);
@@ -90,7 +99,7 @@ public class NNest extends Application implements Serializable{
             outputs = activationOutputs.apply(add(dot(outputs,network.get(NETWORKSIZE-1).weights),network.get(NETWORKSIZE-1).biases),false);
             return outputs;
         }
-        void backpropagation(double[][] inputs, double[][] targets){//Using notation from neuralnetworksanddeeplearning.com
+        public void backpropagation(double[][] inputs, double[][] targets){//Using notation from neuralnetworksanddeeplearning.com
             if(targets[0].length != network.get(NETWORKSIZE-1).biases[0].length){
                 throw new IllegalArgumentException("TARGETS ARRAY DO NOT MATCH THE SIZE OF THE OUTPUT LAYER");
             }
@@ -140,10 +149,8 @@ public class NNest extends Application implements Serializable{
                     dC_dZ = multiply(dC_dA,dA_dZ);
                 }
                 dC_dW = dot(transpose(dZ_dW),dC_dZ);
-                NNest.increment++;
                 costFunction.apply(copy(A.get(NETWORKSIZE)), targets).apply(false);//Update the cost to anneal the learning rate
-                globalCost = cost;
-                //Annealing
+                //Square Root Annealing
                 double stabilizer = lr*Math.sqrt(cost)* Math.pow(10, -NETWORKSIZE+2+(NETWORKSIZE*Math.E*((.02+.0002*NETWORKSIZE)*NETWORKSIZE-(.02+.0002*NETWORKSIZE))));
                 bGradients = scale(stabilizer,dC_dZ);
                 wGradients = scale(stabilizer,dC_dW);
@@ -153,6 +160,8 @@ public class NNest extends Application implements Serializable{
                     outputLayer = false;
                 }
             }
+            increment++;
+            globalCost = cost;
         }
         private double[][] linearActivation(double[][] matrix, boolean derivative){
             int rows = matrix.length;
@@ -330,7 +339,7 @@ public class NNest extends Application implements Serializable{
             if(matrixA.length != matrixB.length || matrixA[0].length != matrixB[0].length)
                 throw new IllegalArgumentException("Matrices Dimension Mismatch");
         }
-        void print(double[][] matrix, String nameOfMatrix){
+        public void print(double[][] matrix, String nameOfMatrix){
             System.out.println(nameOfMatrix + ": ");
             int rows = matrix.length;
             int columns = matrix[0].length;
@@ -340,21 +349,21 @@ public class NNest extends Application implements Serializable{
                 System.out.println("");
             }
         }
-        void resetDouble(double[][] matrix){
+        public void resetDouble(double[][] matrix){
             int rows = matrix.length;
             int columns = matrix[0].length;
             for(int i = 0; i < rows; i++)
                 for(int j = 0; j < columns; j++)
                     matrix[i][j] = 0;
         }
-        void resetInt(int[][] matrix){
+        public void resetInt(int[][] matrix){
             int rows = matrix.length;
             int columns = matrix[0].length;
             for(int i = 0; i < rows; i++)
                 for(int j = 0; j < columns; j++)
                     matrix[i][j] = 0;
         }
-        double[][] create(int rows, int columns, double valueToAllElements){
+        public double[][] create(int rows, int columns, double valueToAllElements){
             double[][] matrixResult = new double[rows][columns];
             for(int i = 0; i < rows; i++)
                 for(int j = 0; j < columns; j++){
@@ -362,7 +371,7 @@ public class NNest extends Application implements Serializable{
                 }
             return matrixResult;
         }
-        double[][] randomize(double[][] matrix, double range, double minimum){
+        public double[][] randomize(double[][] matrix, double range, double minimum){
             sizeException(matrix);
             double[][] matrixResult = matrix;
             int rows = matrixResult.length;
@@ -372,7 +381,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = Math.random() * range + minimum;
             return matrixResult;
         }
-        double[][] transpose(double[][] matrix){
+        public double[][] transpose(double[][] matrix){
             sizeException(matrix);
             double[][] matrixResult = new double[matrix[0].length][matrix.length];
             int rows = matrix.length;
@@ -382,7 +391,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[j][i] = matrix[i][j];
             return matrixResult;
         }
-        double[][] scale(double[][] matrix, double factor){
+        public double[][] scale(double[][] matrix, double factor){
             sizeException(matrix);
             double[][] matrixResult = new double[matrix.length][matrix[0].length];
             int rows = matrixResult.length;
@@ -392,7 +401,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = factor * matrix[i][j];
             return matrixResult;   
         }
-        double[][] scale(double factor, double[][] matrix){
+        public double[][] scale(double factor, double[][] matrix){
             sizeException(matrix);
             double[][] matrixResult = new double[matrix.length][matrix[0].length];
             int rows = matrixResult.length;
@@ -402,7 +411,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = factor * matrix[i][j];
             return matrixResult;   
         }
-        double[][] add(double[][] matrixA, double[][] matrixB){
+        public double[][] add(double[][] matrixA, double[][] matrixB){
             sizeException(matrixA);
             sizeException(matrixB);
             dimensionMismatch(matrixA, matrixB);
@@ -414,7 +423,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = matrixA[i][j] + matrixB[i][j];
             return matrixResult;
         }
-        double[][] subtract(double[][] matrixA, double[][] matrixB){
+        public double[][] subtract(double[][] matrixA, double[][] matrixB){
             sizeException(matrixA);
             sizeException(matrixB);
             dimensionMismatch(matrixA, matrixB);
@@ -426,7 +435,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = matrixA[i][j] - matrixB[i][j];
             return matrixResult;
         }
-        double[][] multiply(double[][] matrixA, double[][] matrixB){
+        public double[][] multiply(double[][] matrixA, double[][] matrixB){
             sizeException(matrixA);
             sizeException(matrixB);
             dimensionMismatch(matrixA, matrixB);
@@ -438,7 +447,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = matrixA[i][j] * matrixB[i][j];
             return matrixResult;
         }
-        double[][] dot(double[][] matrixA, double[][] matrixB){
+        public double[][] dot(double[][] matrixA, double[][] matrixB){
             //make sure lengths of rows are the same for each matrix
             sizeException(matrixA);
             sizeException(matrixB);
@@ -453,7 +462,7 @@ public class NNest extends Application implements Serializable{
                         matrixResult[i][j] += matrixA[i][k] * matrixB[k][j];
             return matrixResult;
         }
-        double[][] power(double[][] matrix, double power){
+        public double[][] power(double[][] matrix, double power){
             double[][] matrixResult = new double[matrix.length][matrix[0].length];
             int rows = matrixResult.length;
             int columns = matrixResult[0].length;
@@ -462,7 +471,7 @@ public class NNest extends Application implements Serializable{
                     matrixResult[i][j] = Math.pow(matrix[i][j], power);
             return matrixResult;
         }
-        double sum(double[][] matrix){
+        public double sum(double[][] matrix){
             double sum = 0;
             int rows = matrix.length;
             int columns = matrix[0].length;
@@ -471,7 +480,7 @@ public class NNest extends Application implements Serializable{
                     sum += matrix[i][j];
             return sum;
         }
-        double[][] copy(double[][] matrix){
+        public double[][] copy(double[][] matrix){
             int rows = matrix.length;
             int columns = matrix[0].length;
             double[][] matrixResult = new double[rows][columns];
@@ -483,17 +492,17 @@ public class NNest extends Application implements Serializable{
             return matrixResult;
         }
     }
-    public static int increment = 0;
     @Override
     public void start(Stage stage){
+        boolean costVSAccuracy = false; //Cost = true, Accuracy = false
         final NumberAxis xAxis = new NumberAxis();
         final NumberAxis yAxis = new NumberAxis();
         xAxis.setAnimated(false);
         xAxis.setLabel("Training Sessions");
         yAxis.setAnimated(false);
-        yAxis.setLabel("Cost");
+        yAxis.setLabel(costVSAccuracy ? "Cost" : "Accuracy"); 
         XYChart.Series<Number, Number> series = new XYChart.Series<>();
-        series.setName("Cost over Training Sessions");
+        series.setName(yAxis.getLabel() + " over " + xAxis.getLabel());
         ScatterChart<Number, Number> chart = new ScatterChart<>(xAxis, yAxis);
         chart.setAnimated(false);
         chart.getData().add(series);
@@ -503,8 +512,8 @@ public class NNest extends Application implements Serializable{
         Thread updateThread = new Thread(() -> {
             while(true){
                 try{
-                    Thread.sleep(250);
-                    Platform.runLater(() -> series.getData().add(new XYChart.Data<>(increment, globalCost)));
+                    Thread.sleep(50);
+                    Platform.runLater(() -> series.getData().add(new XYChart.Data<>(increment, costVSAccuracy ? globalCost : 1/Math.pow(10, globalCost))));
                 } 
                 catch(InterruptedException e){
                     throw new RuntimeException(e);

@@ -18,6 +18,7 @@ public class TictactoeSupervised {
                     + "\n2: Play Local"
                     + "\n3: Play AI"
                     + "\n4: Train AI with AI"
+                    + "\n5: AI vs Random"
                     + "\nElse: Exit");
             String option = sc.nextLine();
             switch(option){
@@ -122,6 +123,36 @@ public class TictactoeSupervised {
                         else{
                             break;
                         }
+                    }
+                    break;
+                case "5":
+                    while(true){
+                        System.out.println("AI as Player 1 or 2?");
+                        player = sc.nextLine();
+                        if(!player.equals("1") && !player.equals("2")){
+                                System.out.println("Not an option...");
+                                continue;
+                            }
+                        break;
+                    }
+                    turn1 = player.equals("1") ? (x) -> g.aiTurn(x) : (x) -> g.randomTurn(x);
+                    turn2 = player.equals("2") ? (x) -> g.aiTurn(x) : (x) -> g.randomTurn(x);
+                    while(true){
+                        while(true){
+                            turn1.accept(1);
+                            if(g.game != 0){
+                                break;
+                            }
+                            turn2.accept(2);
+                            if(g.game != 0){
+                                break;
+                            }
+                        }
+                        System.out.println("1: Again\nElse: Main Menu");
+                        String choice = sc.nextLine();
+                        if(!choice.equals("1"))
+                            break;
+                        g.resetGame();
                     }
                     break;
                 default:

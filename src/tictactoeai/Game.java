@@ -3,7 +3,7 @@ import java.util.*;
 import java.io.*;
 public class Game {
     boolean quickLearn = false;
-    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,200,1);
+    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,500,1);
     Scanner sc = new Scanner(System.in);
     private double[][] board = {{0,0,0},
                                 {0,0,0},
@@ -20,11 +20,11 @@ public class Game {
     double output;
     double[][] inputs;
     double[][] target = new double[1][1];
-    double epsilon = .3;
+    double epsilon = .2;
     ArrayList<double[][]> actions = new ArrayList<>();
     public void save(){
         try{
-            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralnetwork.ser");
+            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkSize() + ").ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(nn.network);
         }
@@ -34,7 +34,7 @@ public class Game {
     }
     public void load(){
         try{
-            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/neuralnetwork.ser");
+            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkSize() + ").ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
             nn.network = (ArrayList)in.readObject();
         }
@@ -183,23 +183,23 @@ public class Game {
             x = spot - 6;
         }
     }
-    private double[][] toInputs(double[][] in){
+    private double[][] toInputs(double[][] vector){
         double[][] result = new double[1][18];
         int k = 0;
         for(int i = 0; i < 9; i++){
-            if(in[0][i] == 0){
+            if(vector[0][i] == 0){
                 result[0][k] = 0;
                 k++;
                 result[0][k] = 0;
                 k++;
             }
-            else if(in[0][i] == 1){
+            else if(vector[0][i] == 1){
                 result[0][k] = 1;
                 k++;
                 result[0][k] = 0;
                 k++;
             }
-            else if(in[0][i] == 2){
+            else if(vector[0][i] == 2){
                 result[0][k] = 0;
                 k++;
                 result[0][k] = 1;
@@ -207,6 +207,20 @@ public class Game {
             }
         }
         return result;
+    }
+    public void randomTurn(int mark){
+        printBoard();
+        while(true){
+            int r1 = (int)(Math.random()*3);
+            int r2 = (int)(Math.random()*3);
+            if(board[r1][r2] == 0){
+                board[r1][r2] = mark;
+                inputs = toRow();
+                actions.add(toInputs(inputs));
+                break;
+            }
+        }
+        win(mark);
     }
     public void aiTurn(int mark){
         printBoard();
