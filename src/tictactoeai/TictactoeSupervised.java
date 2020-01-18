@@ -5,9 +5,9 @@ public class TictactoeSupervised {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         Game g = new Game();
+        g.load();
         int sessions = 1000;
         long times = 0;
-        g.load();
         boolean flag = true;
         String player;
         Consumer<Integer> turn1;
