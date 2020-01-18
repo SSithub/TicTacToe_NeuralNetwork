@@ -6,6 +6,7 @@ public class TictactoeSupervised {
         Scanner sc = new Scanner(System.in);
         Game g = new Game();
         int sessions = 1000;
+        long times = 0;
         g.load();
         boolean flag = true;
         String player;
@@ -14,6 +15,7 @@ public class TictactoeSupervised {
         while(flag){
             g.quickLearn = false;
             g.resetGame();
+            g.resetScores();
             System.out.println("1: How To Play"
                     + "\n2: Play Local"
                     + "\n3: Play AI"
@@ -72,7 +74,6 @@ public class TictactoeSupervised {
                     System.out.println("Disable printing?");
                     String fast = sc.nextLine();
                     g.quickLearn = fast.equalsIgnoreCase("1") ? true : fast.equalsIgnoreCase("y");
-                    long times;
                     new Thread(() -> {
                         NNest.launch(NNest.class);
                     }).start();
@@ -126,6 +127,7 @@ public class TictactoeSupervised {
                     }
                     break;
                 case "5":
+                    g.quickLearn = true;
                     while(true){
                         System.out.println("AI as Player 1 or 2?");
                         player = sc.nextLine();
@@ -138,21 +140,51 @@ public class TictactoeSupervised {
                     turn1 = player.equals("1") ? (x) -> g.aiTurn(x) : (x) -> g.randomTurn(x);
                     turn2 = player.equals("2") ? (x) -> g.aiTurn(x) : (x) -> g.randomTurn(x);
                     while(true){
+                        System.out.println("Play how many times?");
                         while(true){
-                            turn1.accept(1);
-                            if(g.game != 0){
+                            try{
+                                times = sc.nextLong();
+                                sc.nextLine();
                                 break;
                             }
-                            turn2.accept(2);
-                            if(g.game != 0){
-                                break;
+                            catch(java.util.InputMismatchException e){
+                                System.out.println("Not a number...");
+                                sc.nextLine();
                             }
                         }
+                        for(int i = 0; i < times; i++){
+                            while(true){
+                                turn1.accept(1);
+                                if(g.game != 0){
+                                    break;
+                                }
+                                turn2.accept(2);
+                                if(g.game != 0){
+                                    break;
+                                }
+                            }
+                            if(g.game == 1 && player.equals("2")){
+                                g.quickLearn = false;
+                                g.printBoard();
+                                g.quickLearn = true;
+                            }
+                            else if(g.game == 2 && player.equals("1")){
+                                g.quickLearn = false;
+                                g.printBoard();
+                                g.quickLearn = true;
+                            }
+                            g.resetGame();
+                            if(i%10000 == 0){
+                                System.out.println(i + " / " + times);
+                            }
+                        }
+                        g.printTrainStats();
                         System.out.println("1: Again\nElse: Main Menu");
                         String choice = sc.nextLine();
                         if(!choice.equals("1"))
                             break;
                         g.resetGame();
+                        g.resetScores();
                     }
                     break;
                 default:

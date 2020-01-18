@@ -3,7 +3,7 @@ import java.util.*;
 import java.io.*;
 public class Game {
     boolean quickLearn = false;
-    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,500,1);
+    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,750,1);
     Scanner sc = new Scanner(System.in);
     private double[][] board = {{0,0,0},
                                 {0,0,0},
@@ -55,7 +55,7 @@ public class Game {
         winsO = 0;
         ties = 0;
     }
-    private void printBoard(){
+    public void printBoard(){
         if(!quickLearn){
             for(int i = 0; i < 3; i++){
                 for(int j = 0; j < 3; j++){
