@@ -1,7 +1,7 @@
 # TicTacToe_Supervised
 A beginning problem for deep learning.
 
-This network was not deep at all, since it was slow to train with more hidden layers.
+This network was supposed to be deep, but it was slow in backpropagation so it was better to make it shallow.
 
 The network took in 18 inputs for the board, 750 nodes in the hidden layer, and 1 output node.
 
