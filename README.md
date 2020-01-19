@@ -5,6 +5,8 @@ This network was supposed to be deep, but it was slow in backpropagation so it w
 
 The network took in 18 inputs for the board, 750 nodes in the hidden layer, and 1 output node.
 
+Two hidden layers with 120 nodes each worked as well.
+
 The Leaky RELU function was used in the hidden layer and the sigmoid function for the output layer.
 
 The first approach was to feed forward 9 inputs and have 1 indicate a X, have -1 indicate a O, and have 0 indicate an empty spot.
