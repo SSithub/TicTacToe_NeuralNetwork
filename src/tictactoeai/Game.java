@@ -3,7 +3,7 @@ import java.util.*;
 import java.io.*;
 public class Game {
     boolean quickLearn = false;
-    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic",18,750,1);
+    NNest.NN nn = new NNest().new NN(.01,"leakyrelu","sigmoid","quadratic","momentum",true,18,120,120,1);
     Scanner sc = new Scanner(System.in);
     private double[][] board = {{0,0,0},
                                 {0,0,0},
@@ -19,12 +19,12 @@ public class Game {
     double min;
     double output;
     double[][] inputs;
-    double[][] target = new double[1][1];
+    float[][] target = new float[1][1];
     double epsilon = .2;
-    ArrayList<double[][]> actions = new ArrayList<>();
+    ArrayList<float[][]> actions = new ArrayList<>();
     public void save(){
         try{
-            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkSize() + ").ser");
+            FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkLayers() + ").ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(nn.network);
         }
@@ -34,7 +34,7 @@ public class Game {
     }
     public void load(){
         try{
-            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkSize() + ").ser");
+            FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/neuralnetwork(" + nn.getNetworkLayers() + ").ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
             nn.network = (ArrayList)in.readObject();
         }
@@ -183,8 +183,8 @@ public class Game {
             x = spot - 6;
         }
     }
-    private double[][] toInputs(double[][] vector){
-        double[][] result = new double[1][18];
+    private float[][] toInputs(double[][] vector){
+        float[][] result = new float[1][18];
         int k = 0;
         for(int i = 0; i < 9; i++){
             if(vector[0][i] == 0){
@@ -312,19 +312,19 @@ public class Game {
     public void aiLearn(){
         int size = actions.size();
         if(game == 1){
-            target[0][0] = .99;
+            target[0][0] = .99f;
             for(int i = 0; i < size; i++){
                 nn.backpropagation(actions.get(i), target);
             }
         }
         else if(game == 2){
-            target[0][0] = .01;
+            target[0][0] = .01f;
             for(int i = 0; i < size; i++){
                 nn.backpropagation(actions.get(i), target);
             }
         }
         else if(game == 3){
-            target[0][0] = .5;
+            target[0][0] = .5f;
             for(int i = 0; i < size; i++){
                 nn.backpropagation(actions.get(i), target);
             }
