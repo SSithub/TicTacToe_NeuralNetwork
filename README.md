@@ -25,4 +25,4 @@ The network outputs a number between 0 and 1 for each spot, 0 being favorable fo
 
 The network chooses spots as the O player based on which spot gives the lowest output, and as the X player it will choose spots that output the highest output.
 
-The labels for the inputs are given by the outcome of the game, so each board state in the game will have a label of either .01, .99, or .5.
+The labels for the inputs are given by the outcome of the game, so each board state in the game will have a label of either .01 (O won), .99 (X won), or .5 (Tie).
