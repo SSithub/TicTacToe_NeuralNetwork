@@ -1,12 +1,12 @@
 package tictactoeai;
 import java.util.Scanner;
 import java.util.function.Consumer;
-public class TictactoeSupervised {
+public class Main {
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
         Game g = new Game();
-        g.load();
-        int sessions = 1000;
+        g.nn.load();
+        final int SESSIONS = 100_000;
         long times = 0;
         boolean flag = true;
         String player;
@@ -74,12 +74,10 @@ public class TictactoeSupervised {
                     System.out.println("Disable printing?");
                     String fast = sc.nextLine();
                     g.quickLearn = fast.equalsIgnoreCase("1") ? true : fast.equalsIgnoreCase("y");
-                    new Thread(() -> {
-                        NNest.launch(NNest.class);
-                    }).start();
+                    NNLib.graph(false, g.nn);
                     while(true){
                         while(true){
-                            System.out.println("Train for " + sessions + " sessions how many times?");
+                            System.out.println("Train for " + SESSIONS + " sessions how many times?");
                             try{
                                 times = sc.nextLong();
                                 sc.nextLine();
@@ -91,7 +89,7 @@ public class TictactoeSupervised {
                             }
                         }
                         for(int l = 0; l < times; l++){
-                            for(int i = 0; i < sessions; i++){
+                            for(int i = 0; i < SESSIONS; i++){
                                 g.resetGame();
                                 while(true){
                                     g.aiTrain(1);
@@ -105,7 +103,7 @@ public class TictactoeSupervised {
                                 }
                                 g.aiLearn();
                             }
-                            g.save();
+                            g.nn.save();
                             if(g.quickLearn){
                                 g.printTrainStats();
                                 g.resetScores();
@@ -189,6 +187,7 @@ public class TictactoeSupervised {
                     break;
                 default:
                     flag = false;
+                    System.exit(0);
                     break;
             }
         }
