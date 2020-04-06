@@ -10,8 +10,8 @@ Two hidden layers with 120 nodes each worked as well.
 The Leaky RELU function was used in the hidden layer and the sigmoid function for the output layer.
 
 ## UPDATE April 6, 2020
-  The old neural network class was replaced with a more updated version which made the old saved networks unusable and I thought the  amount of nodes I used looked bizarre. The new network architecture of 18 input nodes, two hidden layers with 18 nodes each, and 1 output node. During training the network seemed to forget the obvious moves so I had to reduce the learning rate and the steepness of the loss function. I must have had success with the larger networks for their lack of sensitivity during backpropagation. The new network took about 1 million games to perfect playing as player X and O. After ever 100,000 games I would have it play against random moves to see if it has perfected the game.
-
+  The old neural network class was replaced with a more updated version which made the old saved networks unusable and I thought the  amount of nodes I used looked bizarre. The new network architecture of 18 input nodes, two hidden layers with 18 nodes each, and 1 output node. I used tanh for the hidden layers and sigmoid for the output layer. The optimizer used was AMSGrad. During training the network seemed to forget the obvious moves so I had to reduce the learning rate and the steepness of the loss function. I must have had success with the larger networks for their lack of sensitivity during backpropagation. The new network took about 1 million games to perfect playing as player X and O. After ever 100,000 games I would have it play against random moves to see if it has perfected the game.
+### Method
 The first approach was to feed forward 9 inputs and have 1 indicate a X, have -1 indicate a O, and have 0 indicate an empty spot.
 
 The network never managed to learn this way so each spot was expanded into 2 numbers.
