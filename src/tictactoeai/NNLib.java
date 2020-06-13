@@ -1,173 +1,301 @@
 package tictactoeai;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.Random;
-import java.util.function.BiFunction;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import static javafx.application.Application.launch;
-import javafx.application.Platform;
+import javafx.event.EventHandler;
 import javafx.scene.Scene;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.ScatterChart;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.text.Text;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
-public class NNLib extends Application implements Serializable {
+public class NNLib extends Application {
 
-    public enum Initializer {
-        VANILLA, XAVIER, HE
+    /**
+     * A serializable version of java's Function class
+     *
+     * @param <T> First type
+     * @param <R> Second type
+     */
+    public interface Function<T, R> extends java.util.function.Function<T, R>, Serializable {
     }
 
-    public enum ActivationFunction {
-        LINEAR, SIGMOID, TANH, RELU, LEAKYRELU, SWISH, MISH, CUSTOM,
-        SOFTMAX
+    /**
+     * A serializable version of java's BiFunction class
+     *
+     * @param <T> First type
+     * @param <S> Second type
+     * @param <R> Third type
+     */
+    public interface BiFunction<T, S, R> extends java.util.function.BiFunction<T, S, R>, Serializable {
     }
 
-    public enum LossFunction {
-        QUADRATIC(.5), HUBER(1), HUBERPSEUDO(1), CUSTOM(0),
-        CROSS_ENTROPY(0);
+    /**
+     * Just like java's Function and BiFunction but only with the apply method
+     * and 4 parameters.
+     *
+     * @param <T> First type
+     * @param <S> Second type
+     * @param <U> Third type
+     * @param <V> Fourth type
+     * @param <R> Return type
+     */
+    public interface QuadFunction<T, S, U, V, R> extends Serializable {
 
-        private float steepness;
-
-        private LossFunction(double steepnessFactor) {
-            steepness = (float) steepnessFactor;
-        }
-
-        public LossFunction steepness(double steepness) {
-            this.steepness = (float) steepness;
-            return this;
-        }
-
+        R apply(T t, S s, U u, V v);
     }
+    private static int threads;
+    private static BiFunction<float[][], float[][], float[][]> dotProduct = (a, b) -> dot(a, b);
 
-    public enum Optimizer {
-        VANILLA, MOMENTUM, RMSPROP, ADAM, ADAMAX, NADAM, AMSGRAD
-    }
+    /**
+     * The neural network class. This manages all the layers that are put inside
+     * the constructor for easy operations. Having a NN instance is optional for
+     * a neural network since all the operations can be done with the Layers
+     * instances.
+     *
+     */
+    public static class NN implements Serializable {
 
-    private static boolean graphMeasuresAccuracy;
-    private static NN nnForGraph;
-
-    public final class NN implements Serializable {
-
-        private class Layer implements Serializable {
-
-            float[][] weights;
-            float[][] biases;
-
-            Layer(int nodesIn, int nodesOut, Initializer initializer) {
-                weights = create(nodesIn, nodesOut, 0);
-                biases = create(1, nodesOut, 0);
-                weights = randomize(weights, 2, -1);
-                biases = randomize(biases, 2, -1);
-                if (null == initializer) {
-                    throw new IllegalArgumentException("INVALID INITIALIZATION METHOD");
-                } else {
-                    switch (initializer) {
-                        case VANILLA:
-                            weights = vanilla(weights);
-                            break;
-                        case XAVIER:
-                            weights = xavier(weights, nodesIn);
-                            break;
-                        case HE:
-                            weights = he(weights, nodesIn);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("INVALID INITIALIZATION METHOD");
-                    }
-                }
-            }
-
-            private float[][] vanilla(float[][] weights) {
-                return weights;
-            }
-
-            private float[][] xavier(float[][] weights, int nodesIn) {
-                return scale(weights, (float) (1 / Math.sqrt(nodesIn)));
-            }
-
-            private float[][] he(float[][] weights, int nodesIn) {
-                return scale(weights, (float) Math.sqrt(2 / nodesIn));
-            }
-        }
-
-        private long sessions = 0;
-        private int threads;
-        public final String NAME;
+        public static final long serialVersionUID = 1;
+        /**
+         * The name of this NN instance. Used in saving, loading, and info
+         * panels.
+         */
+        public String label;
+        /**
+         * The number of layers in the network, not including the input layer.
+         */
+        public final int length;
         private Layer[] network;
+        private float lr;
         private Random random = new Random();
         private long seed;
-        private final float lr;
-        private double cost;
-        public final int NETWORKSIZE;//Total layers not including the input layer
-        private final Initializer INITIALIZER;
-        private ActivationFunction HIDDENACTIVATIONFUNCTION;
-        private ActivationFunction OUTPUTACTIVATIONFUNCTION;
-        private LossFunction LOSSFUNCTION;
-        private Optimizer OPTIMIZER;
-        private final int[] LAYERNODES;
-        private final float[][][][] previousMomentsW;
-        private final float[][][][] previousMomentsB;
-        private transient BiFunction<float[][], Boolean, float[][]> activationHiddens;
-        private transient BiFunction<float[][], Boolean, float[][]> activationOutputs;
-        private transient BiFunction<float[][], float[][], float[][]> lossFunction;
-        private transient BiFunction<Float, float[][], BiFunction<float[][], float[][], float[][][]>> optimizer;
-        private transient BiFunction<float[][], float[][], float[][]> dotProduct = (a, b) -> dot(a, b);
+        private double loss;
+        private long sessions = 0;
+        private BiFunction<float[][], float[][], Object[]> lossFunction;
+        private QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> optimizer;
+        private int step = 1;
 
-        NN(String name, long seed, double learningRate, Initializer weightInitializer, ActivationFunction hiddenActivationFunction, ActivationFunction outputActivationFunction, LossFunction lossFunction, Optimizer optimizer, int... layerNodes) {
-            NAME = name;
-            random.setSeed(seed);
+        /**
+         * @param label The name for the NN.
+         * @param seed A seed for repeatable Layer initialization.
+         * @param learningRate A value 0 to 1 for training layer parameters.
+         * @param lossFunction Measures the error between two one row matrices.
+         * @param optimizer An algorithm that speeds up SGD.
+         * @param layers An array or list of layers to be used in the network.
+         * @see NNLib.LossFunction
+         * @see NNLib.Optimizer
+         * @see NNLib.Layer
+         */
+        public NN(String label, long seed, double learningRate, BiFunction<float[][], float[][], Object[]> lossFunction, QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> optimizer, Layer... layers) {
+            this.label = label;
+            this.seed = seed;
             lr = (float) learningRate;
-            INITIALIZER = weightInitializer;
-            HIDDENACTIVATIONFUNCTION = hiddenActivationFunction;
-            OUTPUTACTIVATIONFUNCTION = outputActivationFunction;
-            LOSSFUNCTION = lossFunction;
-            OPTIMIZER = optimizer;
-            LAYERNODES = layerNodes;
-            setActivationFunctionHiddens(HIDDENACTIVATIONFUNCTION);
-            setActivationFunctionOutputs(OUTPUTACTIVATIONFUNCTION);
-            setLossFunction(LOSSFUNCTION);
-            setOptimizer(OPTIMIZER);
-            network = new Layer[layerNodes.length - 1];
-            for (int i = 1; i < layerNodes.length; i++) {
-                Layer layer = new Layer(layerNodes[i - 1], layerNodes[i], INITIALIZER);//Adding each layer
-                network[i - 1] = layer;
+            this.lossFunction = lossFunction;
+            this.optimizer = optimizer;
+            network = layers;
+            length = network.length;
+            random.setSeed(seed);
+            for (int i = 0; i < length; i++) {
+                network[i].initialize(random);
             }
-            NETWORKSIZE = network.length;
-            previousMomentsW = new float[2][NETWORKSIZE][][];
-            previousMomentsB = new float[2][NETWORKSIZE][][];
-            for (int i = 0; i < layerNodes.length - 1; i++) {
-                int rows = network[i].weights.length;
-                int columns = network[i].weights[0].length;
-                previousMomentsW[0][i] = create(rows, columns, 0);
-                previousMomentsB[0][i] = create(1, columns, 0);
-                previousMomentsW[1][i] = create(rows, columns, 0);
-                previousMomentsB[1][i] = create(1, columns, 0);
+        }
+
+        /**
+         * Feed inputs into the network for an output.
+         *
+         * @param inputs A 2D array to be fed into the network. The shape of the
+         * matrix depends on the input layer.
+         * @return A 2D array with one 1D array representing the output of the
+         * network.
+         */
+        public float[][] feedforward(float[][] inputs) {
+            float[][] out = inputs;
+            for (int i = 0; i < length; i++) {
+                out = network[i].forward(out);
+            }
+            return out;
+        }
+
+        /**
+         * The backpropagation algorithm for tuning weights.
+         *
+         * @param inputs
+         * {@link NN#feedforward(float[][]) Passed into the feedforward method}
+         * @param targets The desired output for the network to fit to. Must
+         * match the shape of the outputs or either an ArrayOutOfBoundsException
+         * will be thrown or some of the targets will be ignored.
+         */
+        public void backpropagation(float[][] inputs, float[][] targets) {
+            float[][] out = feedforward(inputs);
+            Object[] lossArr = lossFunction.apply(out, targets);
+            loss = (double) lossArr[0];
+            float[][] dC_dA = (float[][]) lossArr[1];
+            float[][] dC_dZ = network[length - 1].back(dC_dA, null, lr, optimizer, true, step);
+            for (int i = length - 2; i >= 0; i--) {
+                network[i].back(dC_dZ, ((Layer.Dense) network[i + 1]).weights, lr, optimizer, false, step);
+            }
+            step++;
+            sessions++;
+        }
+
+        /**
+         * Randomizes network parameters based on the given range.
+         *
+         * @param range The range of random values centered at 0.
+         */
+        public void randomize(float range) {
+            for (int i = 0; i < length; i++) {
+                network[i].randomize(range);
+            }
+        }
+
+        /**
+         * Modify network parameters based on the given range.
+         *
+         * @param range The range of random numbers centered at 0.
+         * @param mutateRate Number between 0 and 1 representing the probability
+         * that a parameter is altered.
+         */
+        public void mutate(float range, float mutateRate) {
+            for (int i = 0; i < length; i++) {
+                network[i].mutate(range, mutateRate);
             }
         }
 
         @Override
         public String toString() {
             String networkLayers = "";
-            for (Layer layer : network) {
-                networkLayers += layer.weights.length + ",";
+            networkLayers += network[0].nodesIn + "_";
+            for (int i = 0; i < length - 1; i++) {
+                networkLayers += network[i].nodesOut + "_";
             }
-            networkLayers += network[NETWORKSIZE - 1].weights[0].length;
+            networkLayers += network[length - 1].nodesOut;
             return networkLayers;
         }
 
-        public Layer getNetworkLayer(int layerIndex) {//0 returns the layer after the inputs (first hidden layer). Holds weights between itself and the layer before.
+        @Override
+        public NN clone() {
+            Layer[] layers = new Layer[length];
+            for (int i = 0; i < length; i++) {
+                layers[i] = network[i].clone();
+            }
+            NN clone = new NN(label, seed, lr, lossFunction, optimizer, layers);
+            return clone;
+        }
+
+        public void copyParameters(NN nn) {
+            for (int i = 0; i < nn.length; i++) {
+                network[i] = nn.network[i].clone();
+            }
+        }
+
+        /**
+         * Saves a serialized array of important information of this NN instance
+         * into a new file inside the current directory.
+         */
+        public void save() {
+            try {
+                FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + File.separator + label + "_neuralnetwork-" + toString());
+                ObjectOutputStream out = new ObjectOutputStream(fileOut);
+                Object[] arr = {network, random, step};
+                out.writeObject(arr);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        /**
+         * Same as {@link #load()} method but instead will look outside of the
+         * .jar instead of inside.
+         *
+         * @return True if the load was successful and false if unsuccessful.
+         */
+        public boolean loadFromJar() {
+            try {
+                String path = new File(this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getAbsolutePath();//For jar files
+                FileInputStream fileIn = new FileInputStream(path + File.separator + label + "_neuralnetwork-" + toString());
+                ObjectInputStream in = new ObjectInputStream(fileIn);
+                Object[] arr = (Object[]) in.readObject();
+                network = (Layer[]) arr[0];
+                random = (Random) arr[1];
+                step = (Integer) arr[2];
+                return true;
+            } catch (IOException | ClassNotFoundException e) {
+                System.out.println("Could not load network settings for \"" + label + "\".");
+                return false;
+            }
+        }
+
+        /**
+         * Loads a serialized version of the NN instance created by
+         * {@link #save()}. Will search for the file with the same NN label and
+         * layer architecture in the name. Careful loading after changing the NN
+         * hyper parameters.
+         *
+         * @return True if the load was successful and false if unsuccessful.
+         */
+        public boolean load() {
+            try {
+                FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + File.separator + label + "_neuralnetwork-" + toString());
+                ObjectInputStream in = new ObjectInputStream(fileIn);
+                Object[] arr = (Object[]) in.readObject();
+                network = (Layer[]) arr[0];
+                random = (Random) arr[1];
+                step = (Integer) arr[2];
+                return true;
+            } catch (IOException | ClassNotFoundException e) {
+                System.out.println("Could not load network settings for \"" + label + "\".");
+                return false;
+            }
+        }
+
+        /**
+         * Get a specific layer of the NN.
+         *
+         * @param layerIndex 0 refers to the first hidden layer following the
+         * inputs. Passing in one less than the length of the network would
+         * return the output layer.
+         * @return The corresponding layer.
+         */
+        public Layer getLayer(int layerIndex) {
             return network[layerIndex];
         }
 
-        public int getNetworkSize() {
-            return network.length;
+        /**
+         * Get the random class used by the NN with the set seed.
+         *
+         * @return The random class.
+         */
+        public Random getRandom() {
+            return random;
+        }
+
+        /**
+         * Set the name of the NN which is used int
+         *
+         * @param label
+         */
+        public void setLabel(String label) {
+            this.label = label;
         }
 
         public void setSeed(long seed) {
@@ -175,1102 +303,944 @@ public class NNLib extends Application implements Serializable {
             random.setSeed(seed);
         }
 
-        public Random getRandom() {
-            return random;
+        public void setLearningRate(double learningRate) {
+            lr = (float) learningRate;
         }
+
+        /**
+         * @param lossFunction The loss/cost/error function
+         * @see NNLib.LossFunction
+         */
+        public void setLossFunction(BiFunction<float[][], float[][], Object[]> lossFunction) {
+            this.lossFunction = lossFunction;
+        }
+
+        /**
+         * @param optimizer The SGD optimizer
+         * @see NNLib.Optimizer
+         */
+        public void setOptimizer(QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> optimizer) {
+            this.optimizer = optimizer;
+            step = 1;
+        }
+    }
+
+    public abstract static class Layer implements Serializable {
+
+        int nodesIn;
+        int nodesOut;
+        float[][] prevA;
+        float[][] Z;
+        float[][] A;
+        int step = 1;
+
+        abstract void initialize(Random random);
+
+        abstract float[][] forward(float[][] in);
+
+        abstract float[][] back(float[][] dG, float[][] dZ_dA, float lr, QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> optimizer, boolean outputLayer, int step);
+
+        abstract void randomize(float range);
+
+        abstract void mutate(float range, float mutateRate);
+
+        protected abstract Layer clone();
 
         @Override
-        public NN clone() {
-            NN nnCopy = new NN(NAME, seed, lr, INITIALIZER, HIDDENACTIVATIONFUNCTION, OUTPUTACTIVATIONFUNCTION, LOSSFUNCTION, OPTIMIZER, LAYERNODES);
-            for (int i = 0; i < getNetworkSize(); i++) {
-                nnCopy.getNetworkLayer(i).weights = copy(getNetworkLayer(i).weights);
-                nnCopy.getNetworkLayer(i).biases = copy(getNetworkLayer(i).biases);
-            }
-            return nnCopy;
-        }
+        public abstract String toString();
 
-        public void save() {
-            try {
-                FileOutputStream fileOut = new FileOutputStream(System.getProperty("user.dir") + "/" + NAME + "_neuralnetwork(" + toString() + ")");
-                ObjectOutputStream out = new ObjectOutputStream(fileOut);
-                out.writeObject(this);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        public static class Dense extends Layer implements Serializable {
 
-        public boolean load() {
-            try {
-                FileInputStream fileIn = new FileInputStream(System.getProperty("user.dir") + "/" + NAME + "_neuralnetwork(" + toString() + ")");
-                ObjectInputStream in = new ObjectInputStream(fileIn);
-                NN nn = (NN) in.readObject();
-                network = nn.network;
-                random = nn.random;
-                return true;
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-                System.out.println("Could not load network settings.");
-                return false;
-            }
-        }
+            float[][] weights;
+            float[][] biases;
+            float[][][] updateStorageW;
+            float[][][] updateStorageB;
+            BiFunction<float[][], Boolean, float[][]> activation;
+            BiFunction<float[][], Integer, float[][]> initializer;
 
-        public float[][] feedforward(float[][] inputs) {
-            float[][] outputs = inputs;
-            for (int i = 0; i < NETWORKSIZE - 1; i++) {//Feed the inputs through the hidden layers
-                Layer currentLayer = network[i];
-                outputs = activationHiddens.apply(add(dotProduct.apply(outputs, currentLayer.weights), currentLayer.biases), false);
-            }
-            Layer lastLayer = network[NETWORKSIZE - 1];
-            outputs = activationOutputs.apply(add(dotProduct.apply(outputs, lastLayer.weights), lastLayer.biases), false);//Feed the output from the hidden layers to the output layer with its activation function
-
-            return outputs;
-        }
-
-        public void backpropagation(float[][] inputs, float[][] targets) {//Using notation from neuralnetworksanddeeplearning.com
-            Layer lastLayer = network[NETWORKSIZE - 1];
-            if (targets[0].length != lastLayer.biases[0].length) {
-                throw new IllegalArgumentException("TARGETS ARRAY DO NOT MATCH THE SIZE OF THE OUTPUT LAYER");
-            }
-            float[][] outputs = inputs;
-            //Each partial derivative is used in this order
-            float[][] dC_dA;
-            float[][] dA_dZ;
-            float[][] dZ_dW;
-            float[][] dC_dZ = {{}};
-            float[][] dC_dW;
-            float[][] bGradients;
-            float[][] wGradients;
-            float[][] dZ_dA = {{}};
-            float[][][] Z = new float[NETWORKSIZE][][];//"Z" = the unactivated outputs from the weights and biases
-            float[][][] A = new float[NETWORKSIZE + 1][][];//"A" = the activated "Z"s
-            A[0] = outputs;
-            for (int i = 0; i < NETWORKSIZE - 1; i++) {
-                Layer currentLayer = network[i];
-                outputs = add(dotProduct.apply(outputs, currentLayer.weights), currentLayer.biases);//Computing "Z"
-                Z[i] = outputs;
-                outputs = activationHiddens.apply(outputs, false);//Computing "A"
-                A[i + 1] = outputs;
-            }
-            outputs = add(dotProduct.apply(outputs, lastLayer.weights), lastLayer.biases);
-            Z[NETWORKSIZE - 1] = outputs;
-            outputs = activationOutputs.apply(outputs, false);
-            A[NETWORKSIZE] = outputs;
-            dC_dA = lossFunction.apply(A[NETWORKSIZE], targets);
-            boolean outputLayer = true;
-            for (int i = 0; i < NETWORKSIZE; i++) {
-                int currentIndex = NETWORKSIZE - 1 - i;
-                Layer currentLayer = network[currentIndex];
-                if (!outputLayer) {
-                    dZ_dA = network[currentIndex + 1].weights;
-                }
-                if (outputLayer) {
-                    dA_dZ = activationOutputs.apply(Z[currentIndex], true);
-                } else {
-                    dA_dZ = activationHiddens.apply(Z[currentIndex], true);
-                }
-                dZ_dW = A[currentIndex];
-                if (!outputLayer) {
-                    dC_dA = dotProduct.apply(dC_dZ, transpose(dZ_dA));
-                }
-                if (outputLayer) {
-                    dC_dZ = multiply(dA_dZ, dC_dA);
-                } else {
-                    dC_dZ = multiply(dC_dA, dA_dZ);
-                }
-                dC_dW = dotProduct.apply(transpose(dZ_dW), dC_dZ);
-                //Add optimizer or updater to gradients
-                float[][][] updateB = optimizer.apply(lr, dC_dZ).apply(previousMomentsB[0][currentIndex], previousMomentsB[1][currentIndex]);
-                float[][][] updateW = optimizer.apply(lr, dC_dW).apply(previousMomentsW[0][currentIndex], previousMomentsW[1][currentIndex]);
-                bGradients = updateB[0];
-                wGradients = updateW[0];
-                //Update weights and biases
-                currentLayer.biases = subtract(currentLayer.biases, bGradients);
-                currentLayer.weights = subtract(currentLayer.weights, wGradients);
-                //Save old gradients
-                previousMomentsW[0][currentIndex] = updateW[1];
-                previousMomentsB[0][currentIndex] = updateB[1];
-                previousMomentsW[1][currentIndex] = updateW[2];
-                previousMomentsB[1][currentIndex] = updateB[2];
-                if (outputLayer) {
-                    outputLayer = false;
-                }
-            }
-            sessions++;
-        }
-
-        public void mutateAdditive(double mutateRate, double range) {
-            for (int i = 0; i < getNetworkSize(); i++) {
-                for (int j = 0; j < getNetworkLayer(i).weights.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).weights[0].length; k++) {
-                        if (Math.random() < mutateRate) {
-                            getNetworkLayer(i).weights[j][k] += (float) (Math.random() * range - (range / 2));
-                        }
-                    }
-                }
-                for (int j = 0; j < getNetworkLayer(i).biases.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).biases[0].length; k++) {
-                        if (Math.random() < mutateRate) {
-                            getNetworkLayer(i).biases[j][k] += (float) (Math.random() * range - (range / 2));
-                        }
-                    }
-                }
-            }
-        }
-
-        public void mutateNewValues(double mutateRate, double range) {
-            for (int i = 0; i < getNetworkSize(); i++) {
-                for (int j = 0; j < getNetworkLayer(i).weights.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).weights[0].length; k++) {
-                        if (Math.random() < mutateRate) {
-                            getNetworkLayer(i).weights[j][k] = (float) (Math.random() * range - (range / 2));
-                        }
-                    }
-                }
-                for (int j = 0; j < getNetworkLayer(i).biases.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).biases[0].length; k++) {
-                        if (Math.random() < mutateRate) {
-                            getNetworkLayer(i).biases[j][k] = (float) (random.nextFloat() * range - (range / 2));
-                        }
-                    }
-                }
-            }
-        }
-
-        public void randomizeNetwork(double range) {
-            for (int i = 0; i < getNetworkSize(); i++) {
-                for (int j = 0; j < getNetworkLayer(i).weights.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).weights[0].length; k++) {
-                        getNetworkLayer(i).weights[j][k] = (float) (random.nextFloat() * range - (range / 2));
-                    }
-                }
-                for (int j = 0; j < getNetworkLayer(i).biases.length; j++) {
-                    for (int k = 0; k < getNetworkLayer(i).biases[0].length; k++) {
-                        getNetworkLayer(i).biases[j][k] = (float) (random.nextFloat() * range - (range / 2));
-                    }
-                }
-            }
-        }
-
-        private BiFunction<float[][], Boolean, float[][]> assignActivationFunction(BiFunction<float[][], Boolean, float[][]> activation, ActivationFunction activationFunction, boolean hiddens) {
-            String layer;
-            if (hiddens) {
-                layer = "HIDDEN";
-            } else {
-                layer = "OUTPUT";
-            }
-            if (null == activationFunction) {
-                throw new IllegalArgumentException("INVALID ACTIVATION FUNCTION FOR THE " + layer + " LAYER");
-            } else {
-                switch (activationFunction) {
-                    case LINEAR:
-                        activation = (a, b) -> activationLinear(a, b);
-                        break;
-                    case SIGMOID:
-                        activation = (a, b) -> activationSigmoid(a, b);
-                        break;
-                    case TANH:
-                        activation = (a, b) -> activationTanh(a, b);
-                        break;
-                    case RELU:
-                        activation = (a, b) -> activationRelu(a, b);
-                        break;
-                    case LEAKYRELU:
-                        activation = (a, b) -> activationLeakyRelu(a, b);
-                        break;
-                    case SWISH:
-                        activation = (a, b) -> activationSwish(a, b);
-                        break;
-                    case MISH:
-                        activation = (a, b) -> activationMish(a, b);
-                        break;
-                    case CUSTOM:
-                        activation = (a, b) -> activationCustom(a, b);
-                        break;
-                    case SOFTMAX:
-                        activation = (a, b) -> activationSoftmax(a, b);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("INVALID ACTIVATION FUNCTION FOR THE " + layer + " LAYER");
-                }
-            }
-            if (hiddens) {
-                HIDDENACTIVATIONFUNCTION = activationFunction;
-            } else {
-                OUTPUTACTIVATIONFUNCTION = activationFunction;
-            }
-            return activation;
-        }
-
-        public void setActivationFunctionHiddens(ActivationFunction hiddenActivationFunction) {
-            activationHiddens = assignActivationFunction(activationHiddens, hiddenActivationFunction, true);
-        }
-
-        public void setActivationFunctionOutputs(ActivationFunction outputActivationFunction) {
-            activationOutputs = assignActivationFunction(activationOutputs, outputActivationFunction, false);
-        }
-
-        public void setLossFunction(LossFunction lossFunction) {
-            if (null == lossFunction) {
-                throw new IllegalArgumentException("INVALID COST FUNCTION");
-            } else {
-                switch (lossFunction) {
-                    case QUADRATIC:
-                        this.lossFunction = (a, b) -> lossQuadratic(a, b);
-                        break;
-                    case HUBER:
-                        this.lossFunction = (a, b) -> lossHuber(a, b);
-                        break;
-                    case HUBERPSEUDO:
-                        this.lossFunction = (a, b) -> lossPseudoHuber(a, b);
-                        break;
-                    case CUSTOM:
-                        this.lossFunction = (a, b) -> lossCustom(a, b);
-                        break;
-                    case CROSS_ENTROPY:
-                        this.lossFunction = (a, b) -> lossLog(a, b);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("INVALID COST FUNCTION");
-                }
-            }
-            LOSSFUNCTION = lossFunction;
-        }
-
-        public void setOptimizer(Optimizer updater) {
-            if (null == updater) {
-                throw new IllegalArgumentException("INVALID OPTIMIZER");
-            } else {
-                switch (updater) {
-                    case VANILLA:
-                        optimizer = (a, b) -> (c, d) -> new float[][][]{scale(a, b), null, null};//Scale gradients by the learning rate
-                        break;
-                    case MOMENTUM:
-                        optimizer = (a, b) -> (c, d) -> momentum(a, b, c);
-                        break;
-                    case RMSPROP:
-                        optimizer = (a, b) -> (c, d) -> rmsprop(a, b, c);
-                    case ADAM:
-                        optimizer = (a, b) -> (c, d) -> adam(a, b, c, d);
-                        break;
-                    case ADAMAX:
-                        optimizer = (a, b) -> (c, d) -> adamax(a, b, c, d);
-                    case NADAM:
-                        optimizer = (a, b) -> (c, d) -> nadam(a, b, c, d);
-                        break;
-                    case AMSGRAD:
-                        optimizer = (a, b) -> (c, d) -> amsgrad(a, b, c, d);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("INVALID OPTIMIZER");
-                }
-            }
-            OPTIMIZER = updater;
-        }
-
-        private float[][][] momentum(float lr, float[][] gradients, float[][] v) {
-            final float beta = .9f;
-            float[][] update = add(scale(beta, v), scale(lr, gradients));
-            return new float[][][]{update, update, null};
-        }
-
-        private float[][][] rmsprop(float lr, float[][] gradients, float[][] sPrev) {//https://www.coursera.org/lecture/deep-neural-network/rmsprop-BhJlm
-            final float beta = .9f;
-            final float e = .00000001f;
-            float[][] s = add(scale(beta, sPrev), scale(1 - beta, square(gradients)));
-            float[][] update = divide(scale(lr, gradients), add(sqrt(s), create(s.length, s[0].length, e)));
-            return new float[][][]{update, sPrev, null};
-        }
-
-        private float[][][] adam(float lr, float[][] gradients, float[][] moment1, float[][] moment2) {
-            final float beta1 = .9f;
-            final float beta2 = .999f;
-            final float e = .00000001f;
-            float[][] m = add(scale((1 - beta1), gradients), scale(beta1, moment1));
-            float[][] v = add(scale((1 - beta2), square(gradients)), scale(beta2, moment2));
-            float[][] m_ = scale(1 / (1 - beta1), m);//debiasing
-            float[][] v_ = scale(1 / (1 - beta2), v);//debiasing
-            float[][] update = divide(scale(lr, m_), add(sqrt(v_), create(v_.length, v_[0].length, e)));
-            return new float[][][]{update, m, v};
-        }
-
-        private float[][][] adamax(float lr, float[][] gradients, float[][] moment1, float[][] moment2) {
-            final float beta1 = .9f;
-            final float beta2 = .999f;
-            final float e = .00000001f;
-            float[][] m = add(scale((1 - beta1), gradients), scale(beta1, moment1));
-            float[][] v = add(scale((1 - beta2), square(gradients)), scale(beta2, moment2));
-            float[][] m_ = scale(1 / (1 - beta1), m);
-            float[][] u = max(scale(beta2, moment2), abs(gradients));
-            float[][] update = divide(scale(lr, m_), u);
-            return new float[][][]{update, m, v};
-        }
-
-        private float[][][] nadam(float lr, float[][] gradients, float[][] moment1, float[][] moment2) {
-            final float beta1 = .9f;
-            final float beta2 = .999f;
-            final float e = .00000001f;
-            int rows = gradients.length;
-            int columns = gradients[0].length;
-            float[][] m = add(scale((1 - beta1), gradients), scale(beta1, moment1));
-            float[][] v = add(scale((1 - beta2), square(gradients)), scale(beta2, moment2));
-            float[][] m_ = scale(1 / (1 - beta1), m);
-            float[][] v_ = scale(1 / (1 - beta2), v);
-            float[][] update = multiply(divide(create(rows, columns, lr), add(sqrt(v_), create(rows, columns, e))), add(scale(beta1, m_), scale(scale(1 - beta1, gradients), 1 / (1 - beta1))));
-            return new float[][][]{update, m, v};
-        }
-
-        private float[][][] amsgrad(float lr, float[][] gradients, float[][] moment1, float[][] moment2) {
-            final float beta1 = .9f;
-            final float beta2 = .999f;
-            final float e = .00000001f;
-            float[][] m = add(scale((1 - beta1), gradients), scale(beta1, moment1));
-            float[][] v = add(scale((1 - beta2), square(gradients)), scale(beta2, moment2));
-            float[][] v_ = max(moment2, v);
-            float[][] update = divide(scale(lr, m), add(sqrt(v_), create(v_.length, v_[0].length, e)));
-            return new float[][][]{update, m, v};
-        }
-
-        private float[][] activationLinear(float[][] matrix, boolean derivative) {
-            if (!derivative) {
-                return matrix;
-            } else {
-                float[][] matrixResult = create(matrix.length, matrix[0].length, 1);
-                return matrixResult;
-            }
-        }
-
-        private float sigmoid(float x, boolean derivative) {
-            if (derivative) {
-                return sigmoid(x, false) * (1 - sigmoid(x, false));//sigmoid'(x)
-            }
-            return 1 / (1 + (float) Math.exp(-x));//sigmoid(x)
-        }
-
-        private float[][] activationSigmoid(float[][] matrix, boolean derivative) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = sigmoid(matrix[i][j], derivative);
-                }
-            }
-            return matrixResult;
-        }
-
-        private float tanh(float x, boolean derivative) {
-            if (derivative == true) {
-                float val = tanh(x, false);
-                return 1 - val * val;//tanh'(x)
-            }
-            return (2 / (1 + (float) Math.exp(-2 * x))) - 1;//tanh(x)
-        }
-
-        private float[][] activationTanh(float[][] matrix, boolean derivative) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = tanh(matrix[i][j], derivative);
-                }
-            }
-            return matrixResult;
-        }
-
-        private float relu(float x, boolean derivative) {
-            if (derivative) {
-                if (x < 0) {
-                    return 0;
-                } else {
-                    return 1;
-                }
-            } else {
-                return Math.max(0, x);
-            }
-        }
-
-        private float[][] activationRelu(float[][] matrix, boolean derivative) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = relu(matrix[i][j], derivative);
-                }
-            }
-            return matrixResult;
-        }
-
-        private float leakyRelu(float x, boolean derivative) {
-            if (derivative == true) {
-                if (x < 0) {
-                    return .001f;
-                } else {
-                    return 1;
-                }
-            } else {
-                return Math.max(.001f * x, x);
-            }
-        }
-
-        private float[][] activationLeakyRelu(float[][] matrix, boolean derivative) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = leakyRelu(matrix[i][j], derivative);
-                }
-            }
-            return matrixResult;
-        }
-
-        private float swish(float x, boolean derivative) {
-            if (!derivative) {
-                return x * sigmoid(x, false);
-            } else {
-                return x * sigmoid(x, true) + sigmoid(x, false);
-            }
-        }
-
-        private float[][] activationSwish(float[][] m, boolean derivative) {
-            int rows = m.length;
-            int columns = m[0].length;
-            float[][] result = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    result[i][j] = swish(m[i][j], derivative);
-                }
-            }
-            return result;
-        }
-
-        private float mish(float x, boolean derivative) {
-            if (!derivative) {
-                return (float) (x * tanh((float) Math.log(1 + Math.exp(x)), false));
-            } else {
-                double x_ = (double) x;
-                return (float) ((Math.exp(x_) * ((4 * (x_ + 1)) + (4 * Math.exp(2 * x_)) + (Math.exp(3 * x_)) + (Math.exp(x_) * (4 * x_ + 6)))) / ((2 * Math.exp(2 * x_)) + (Math.exp(2 * x_)) + 2));
-            }
-        }
-
-        private float[][] activationMish(float[][] m, boolean derivative) {
-            int rows = m.length;
-            int columns = m[0].length;
-            float[][] result = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    result[i][j] = mish(m[i][j], derivative);
-                }
-            }
-            return result;
-        }
-
-        private float[][] activationCustom(float[][] x, boolean derivative) {
-            int rows = x.length;
-            int columns = x[0].length;
-            if (!derivative) {
-                return max(activationTanh(x, false), x);
-            } else {
-                float[][] result = new float[rows][columns];
-                for (int i = 0; i < rows; i++) {
-                    for (int j = 0; j < columns; j++) {
-                        float val = x[i][j];
-                        if (tanh(val, false) > val) {
-                            result[i][j] = tanh(val, true);
-                        } else {
-                            result[i][j] = 1;
-                        }
-                    }
-                }
-                return result;
-            }
-        }
-
-        public float[][] softmax(float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            float sum = 0;
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    sum += Math.exp(matrix[i][j]);
-                }
-            }
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = (float) Math.exp(matrix[i][j]) / sum;
-                }
-            }
-            return matrixResult;
-        }
-
-        private float[][] activationSoftmax(float[][] matrix, boolean derivative) {
-            float[][] result = softmax(matrix);
-            if (!derivative) {
-                return result;
-            }
-            float[][] ones = create(matrix.length, matrix[0].length, 1);
-            float[][] derivatives = multiply(result, subtract(ones, result));
-            return derivatives;
-        }
-
-        private float[][] lossQuadratic(float[][] outputs, float[][] targets) {
-            final float factor = LOSSFUNCTION.steepness;
-            float[][] loss = scale(factor, square(subtract(outputs, targets)));//m(f(x) - y)^2 where f(x) is the output of the network and y is the target output
-            int columns = loss[0].length;
-            double total = 0;
-            for (int j = 0; j < columns; j++) {
-                total += loss[0][j];
-            }
-            cost = total / columns;
-            return scale(2 * factor, subtract(outputs, targets));
-        }
-
-        private float[][] lossHuber(float[][] outputs, float[][] targets) {//Notation at https://en.wikipedia.org/wiki/Huber_loss
-            final float delta = LOSSFUNCTION.steepness;
-            final float deltaHalf = delta / 2;
-            int columns = outputs[0].length;
-            float[][] a = subtract(outputs, targets);
-            float sum = 0;
-            for (int j = 0; j < columns; j++) {
-                float val = a[0][j];
-                if (Math.abs(val) < delta) {
-                    sum += val * val / 2;
-                } else {
-                    sum += delta * (Math.abs(a[0][j]) - deltaHalf);
-                }
-            }
-            cost = sum / columns;
-            float[][] deriv = new float[1][columns];
-            for (int j = 0; j < columns; j++) {
-                float val = a[0][j];
-                if (Math.abs(val) < delta) {
-                    deriv[0][j] = a[0][j];
-                } else {
-                    deriv[0][j] = delta * (a[0][j] / Math.abs(a[0][j])) - delta;
-                }
-            }
-            return deriv;
-        }
-
-        private float[][] lossPseudoHuber(float[][] outputs, float[][] targets) {//https://en.wikipedia.org/wiki/Huber_loss
-            final float delta = LOSSFUNCTION.steepness;
-            int columns = outputs[0].length;
-            final float deltaSquared = delta * delta;
-            final float[][] ones = create(1, columns, 1);
-            final float[][] a = subtract(outputs, targets);
-            final float[][] root = sqrt(add(ones, scale(square(a), 1 / deltaSquared)));
-            cost = sum(scale(deltaSquared, subtract(root, ones)));
-            return divide(a, root);
-        }
-
-        private float[][] lossCustom(float[][] outputs, float[][] targets) {
-            int columns = outputs[0].length;
-            final float[][] a = subtract(outputs, targets);
-            final float[][] aSquared = square(a);
-            final float[][] constant = create(1, columns, .25f);
-            cost = sum(divide(a, add(constant, aSquared))) / columns;//Loss Function
-            return divide(subtract(constant, aSquared), square(add(aSquared, constant)));//Derivative of the function with respect to a
-        }
-
-        private float[][] lossLog(float[][] outputs, float[][] targets) {
-            cost = -sum(multiply(targets, ln(outputs)));//Update cost
-            int rows = outputs.length;
-            int columns = outputs[0].length;
-            return divide(subtract(outputs, targets), add(multiply(subtract(create(rows, columns, 1), outputs), outputs), create(rows, columns, Float.MIN_VALUE)));//Adding minimum value to prevent dividing by zero
-        }
-
-        public float[][] normalTanh(float[][] inputs) {
-            int elements = inputs[0].length;
-            float[][] result = new float[1][elements];
-            float mean = sum(inputs) / elements;
-            float deviation = (float) (Math.sqrt(sum(square(subtract(inputs, create(1, elements, mean)))) / (mean)));
-            for (int i = 0; i < inputs[0].length; i++) {
-                result[0][i] = (float) (.5 * (tanh((float) (.01 * ((inputs[0][i] - mean) / (deviation))), false) + 1));//Tanh estimator normalization
-            }
-            return result;
-        }
-
-        public float[][] normalZScore(float[][] inputs) {
-            int elements = inputs[0].length;
-            float mean = sum(inputs) / elements;
-            float deviation = (float) (Math.sqrt(sum(square(subtract(inputs, create(1, elements, mean)))) / (mean)));
-            return divide(subtract(inputs, create(1, elements, mean)), create(1, elements, deviation));
-        }
-
-        private void sizeException(float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            for (int i = 0; i < rows; i++) {
-                if (matrix[i].length != columns) {
-                    throw new IllegalArgumentException("Inconsistent Matrix Size");
-                }
-            }
-        }
-
-        private void dotDimensionMismatch(float[][] matrixA, float[][] matrixB) {
-            if (matrixA[0].length != matrixB.length)//A columns must equal B rows
-            {
-                throw new IllegalArgumentException("Matrices Dimension Mismatch");
-            }
-        }
-
-        private void dimensionMismatch(float[][] matrixA, float[][] matrixB) {
-            if (matrixA.length != matrixB.length || matrixA[0].length != matrixB[0].length) {
-                throw new IllegalArgumentException("Matrices Dimension Mismatch");
-            }
-        }
-
-        public void print(float[][] matrix, String nameOfMatrix) {
-            System.out.println(nameOfMatrix + ": ");
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    System.out.print("[" + matrix[i][j] + "] ");
-                }
-                System.out.println("");
-            }
-        }
-
-        public float[][] doubleToFloat(double[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = (float) (matrix[i][j]);
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] create(int rows, int columns, float valueToAllElements) {
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = valueToAllElements;
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] randomize(float[][] matrix, float range, float minimum) {
-            float[][] matrixResult = matrix;
-            int rows = matrixResult.length;
-            int columns = matrixResult[0].length;
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = random.nextFloat() * range + minimum;
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] transpose(float[][] matrix) {
-            float[][] matrixResult = new float[matrix[0].length][matrix.length];
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            for (int j = 0; j < columns; j++) {
-                for (int i = 0; i < rows; i++) {
-                    matrixResult[j][i] = matrix[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] scale(float[][] matrix, float factor) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = factor * matrix[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] scale(float factor, float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = factor * matrix[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] add(float[][] matrixA, float[][] matrixB) {
-            int rows = matrixA.length;
-            int columns = matrixA[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = matrixA[i][j] + matrixB[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] subtract(float[][] matrixA, float[][] matrixB) {
-            int rows = matrixA.length;
-            int columns = matrixA[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = matrixA[i][j] - matrixB[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] multiply(float[][] matrixA, float[][] matrixB) {
-            int rows = matrixA.length;
-            int columns = matrixA[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = matrixA[i][j] * matrixB[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] divide(float[][] matrixA, float[][] matrixB) {
-            int rows = matrixA.length;
-            int columns = matrixA[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = matrixA[i][j] / matrixB[i][j];
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] dot(float[][] m1, float[][] m2) {
-            int rows1 = m1.length;
-            int columns1 = m1[0].length;
-            int columns2 = m2[0].length;
-            float[][] result = new float[rows1][columns2];
-            if (columns1 % 4 == 0) {
-                for (int i = 0; i < rows1; i++) {
-                    for (int k = 0; k < columns1; k += 4) {
-                        for (int j = 0; j < columns2; j++) {
-                            result[i][j] += m1[i][k] * m2[k][j];
-                            result[i][j] += m1[i][k + 1] * m2[k + 1][j];
-                            result[i][j] += m1[i][k + 2] * m2[k + 2][j];
-                            result[i][j] += m1[i][k + 3] * m2[k + 3][j];
-                        }
-                    }
-                }
-            } else if (columns1 % 3 == 0) {
-                for (int i = 0; i < rows1; i++) {
-                    for (int k = 0; k < columns1; k += 3) {
-                        for (int j = 0; j < columns2; j++) {
-                            result[i][j] += m1[i][k] * m2[k][j];
-                            result[i][j] += m1[i][k + 1] * m2[k + 1][j];
-                            result[i][j] += m1[i][k + 2] * m2[k + 2][j];
-                        }
-                    }
-                }
-            } else if (columns1 % 2 == 0) {
-                for (int i = 0; i < rows1; i++) {
-                    for (int k = 0; k < columns1; k += 2) {
-                        for (int j = 0; j < columns2; j++) {
-                            result[i][j] += m1[i][k] * m2[k][j];
-                            result[i][j] += m1[i][k + 1] * m2[k + 1][j];
-                        }
-                    }
-                }
-            } else {
-                for (int i = 0; i < rows1; i++) {
-                    for (int k = 0; k < columns1; k++) {
-                        for (int j = 0; j < columns2; j++) {
-                            result[i][j] += m1[i][k] * m2[k][j];
-                        }
-                    }
-                }
-            }
-            return result;
-        }
-
-        private class MatrixThread extends Thread {
-
-            int num;
-            int threadNum;
-            int rows;
-            int columns;
-            int columns2;
-            float[][] m1;
-            float[][] m2;
-            float[][] result;
-
-            MatrixThread(int num, int threadNum, int rows, int columns, int columns2, float[][] m1, float[][] m2, float[][] result) {
-                this.num = num;
-                this.threadNum = threadNum;
-                this.rows = rows;
-                this.columns = columns;
-                this.columns2 = columns2;
-                this.m1 = m1;
-                this.m2 = m2;
-                this.result = result;
+            public Dense(int nodesIn, int nodesOut, BiFunction<float[][], Boolean, float[][]> activation, BiFunction<float[][], Integer, float[][]> initializer) {
+                this.nodesIn = nodesIn;
+                this.nodesOut = nodesOut;
+                this.activation = activation;
+                this.initializer = initializer;
             }
 
             @Override
-            public void run() {
-                for (int i = num * rows / threadNum; i < (num + 1) * rows / threadNum; i++) {
-                    for (int k = 0; k < columns2; k++) {
-                        for (int j = 0; j < columns; j++) {
-                            result[i][j] += m1[i][k] * m2[k][j];
+            void initialize(Random random) {
+                weights = create(nodesIn, nodesOut, 0);
+                biases = create(1, nodesOut, 0);
+                weights = NNLib.randomize(weights, 2, -1, random);//values on interval [-1,1]
+                biases = NNLib.randomize(biases, 2, -1, random);//values on interval [-1,1]
+                weights = initializer.apply(weights, nodesIn);
+                updateStorageW = new float[][][]{create(nodesIn, nodesOut, 0)};
+                updateStorageB = new float[][][]{create(1, nodesOut, 0)};
+            }
+
+            @Override
+            float[][] forward(float[][] in) {
+                prevA = in;
+                Z = add(dotProduct.apply(in, weights), biases);
+                return activation.apply(Z, false);
+            }
+
+            @Override
+            float[][] back(float[][] dG, float[][] dZ_dA, float lr, QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> optimizer, boolean outputLayer, int step) {//dG = The running gradient from the previous backpropagated layer or loss function
+                float[][] dA_dZ = activation.apply(Z, true);
+                float[][] dC_dZ;
+                if (!outputLayer) {
+                    float[][] dC_dA = dotProduct.apply(dG, transpose(dZ_dA));
+                    if (dA_dZ.length == 1) {
+                        dC_dZ = multiply(dC_dA, dA_dZ);
+                    } else {
+                        dC_dZ = dotProduct.apply(dC_dA, dA_dZ);//For jacobian matrices
+                    }
+                } else {
+                    if (dA_dZ.length == 1) {
+                        dC_dZ = multiply(dG, dA_dZ);
+                    } else {
+                        dC_dZ = dotProduct.apply(dG, dA_dZ);//For jacobian matrices
+                    }
+                }
+                float[][] dC_dW = dotProduct.apply(transpose(prevA), dC_dZ);//prevA = dZ_dW;
+                float[][][][] updateW = null;
+                while (true) {
+                    try {
+                        updateW = optimizer.apply(step, lr, dC_dW, updateStorageW);
+                        break;
+                    } catch (Exception e) {
+                        updateStorageW = append(updateStorageW, new float[][][]{create(nodesIn, nodesOut, 0)});
+                        updateStorageB = append(updateStorageB, new float[][][]{create(1, nodesOut, 0)});
+                    }
+                }
+                float[][][][] updateB = optimizer.apply(step, lr, dC_dZ, updateStorageB);
+                float[][] gradientsW = updateW[0][0];
+                float[][] gradientsB = updateB[0][0];
+                updateStorageW = updateW[1];
+                updateStorageB = updateB[1];
+                weights = subtract(weights, gradientsW);
+                biases = subtract(biases, gradientsB);
+                return dC_dZ;
+            }
+
+            @Override
+            public Dense clone() {
+                Dense copy = new Dense(weights.length, weights[0].length, activation, Initializer.VANILLA);
+                copy.weights = copy(weights);
+                copy.biases = copy(biases);
+                try {
+                    copy.updateStorageW = copy3d(updateStorageW);
+                    copy.updateStorageB = copy3d(updateStorageB);
+                } catch (Exception e) {
+                }
+                return copy;
+            }
+
+            @Override
+            void randomize(float range) {
+                weights = NNLib.randomize(weights, range, -range / 2);
+                biases = NNLib.randomize(biases, range, -range / 2);
+            }
+
+            @Override
+            void mutate(float range, float mutateRate) {
+                for (int i = 0; i < nodesIn; i++) {
+                    for (int j = 0; j < nodesOut; j++) {
+                        if (Math.random() < mutateRate) {
+                            weights[i][j] += (float) (Math.random() * range - range / 2);
                         }
                     }
                 }
-            }
-        }
-
-        public void setThreads(int numberOfThreads) {
-            if (numberOfThreads <= 1) {
-                dotProduct = (a, b) -> dot(a, b);
-            } else {
-                threads = numberOfThreads;
-                dotProduct = (a, b) -> dotThreads(a, b);
-            }
-        }
-
-        public float[][] dotThreads(float[][] m1, float[][] m2) {
-            MatrixThread[] threadArray = new MatrixThread[threads];
-            int rows = m1.length;
-            int columns = m2[0].length;
-            int columns2 = m1[0].length;
-            float[][] result = new float[rows][columns];
-            for (int t = 0; t < threads; t++) {
-                threadArray[t] = new MatrixThread(t, threads, rows, columns, columns2, m1, m2, result);
-                threadArray[t].start();
-            }
-            for (int i = 0; i < threads; i++) {
-                try {
-                    threadArray[i].join();
-                } catch (InterruptedException e) {
-
-                }
-            }
-            return result;
-        }
-
-        public float[][] power(float[][] matrix, double power) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = (float) Math.pow(matrix[i][j], power);
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] square(float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    float val = matrix[i][j];
-                    matrixResult[i][j] = val * val;
-                }
-            }
-            return matrixResult;
-        }
-
-        public float[][] sqrt(float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] matrixResult = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    matrixResult[i][j] = (float) Math.sqrt(matrix[i][j]);
-                }
-            }
-            return matrixResult;
-        }
-
-        public float sum(float[][] matrix) {
-            float sum = 0;
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    sum += matrix[i][j];
-                }
-            }
-            return sum;
-        }
-
-        public float[][] ln(float[][] matrix) {
-            int rows = matrix.length;
-            int columns = matrix[0].length;
-            float[][] result = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    result[i][j] = (float) Math.log(matrix[i][j]);
-                }
-            }
-            return result;
-        }
-
-        public float[][] copy(float[][] matrix) {
-            return Arrays.stream(matrix).map(el -> el.clone()).toArray(a -> matrix.clone());
-        }
-
-        public float[][] oneHot(float[][] m) {
-            int rows = m.length;
-            int columns = m[0].length;
-            float[][] result = create(rows, columns, 0);
-            float max = Float.NEGATIVE_INFINITY;
-            int x = 0;
-            int y = 0;
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    if (max < m[i][j]) {
-                        max = m[i][j];
-                        x = i;
-                        y = j;
+                for (int i = 0; i < nodesOut; i++) {
+                    if (Math.random() < mutateRate) {
+                        biases[0][i] += (float) (Math.random() * range - range / 2);
                     }
                 }
             }
-            result[x][y] = 1;
-            return result;
-        }
 
-        public float[][] abs(float[][] m) {
-            int rows = m.length;
-            int columns = m[0].length;
-            float[][] result = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < columns; j++) {
-                    result[i][j] = Math.abs(m[i][j]);
-                }
+            @Override
+            public String toString() {
+                return "Weights:\n" + matrixToString(weights) + "\nBiases:\n" + matrixToString(biases);
             }
-            return result;
         }
+    }
 
-        public float[][] max(float[][] m1, float[][] m2) {//Size must match
-            int rows = m1.length;
-            int columns = m1[0].length;
-            float[][] result = new float[rows][columns];
-            for (int i = 0; i < rows; i++) {
+    public static class Initializer {
+
+        public static final BiFunction<float[][], Integer, float[][]> VANILLA = (a, b) -> a;//No change
+        public static final BiFunction<float[][], Integer, float[][]> XAVIER = (a, b) -> scale(a, (float) Math.sqrt(1.0 / b));
+        public static final BiFunction<float[][], Integer, float[][]> HE = (a, b) -> scale(a, (float) Math.sqrt(2.0 / b));
+    }
+
+    public static class ActivationFunction {
+
+        public static final BiFunction<float[][], Boolean, float[][]> LINEAR = (matrix, derivative) -> {
+            if (!derivative) {
+                return matrix;
+            }
+            float[][] result = create(matrix.length, matrix[0].length, 1);
+            return result;
+        };
+        public static final BiFunction<float[][], Boolean, float[][]> SIGMOID = (matrix, derivative) -> function(matrix, val -> sigmoid(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> TANH = (matrix, derivative) -> function(matrix, val -> tanh(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> RELU = (matrix, derivative) -> function(matrix, val -> relu(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> LEAKYRELU = (matrix, derivative) -> function(matrix, val -> leakyrelu(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> SWISH = (matrix, derivative) -> function(matrix, val -> swish(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> MISH = (matrix, derivative) -> function(matrix, val -> mish(val, derivative));
+        public static final BiFunction<float[][], Boolean, float[][]> SOFTMAX = (matrix, derivative) -> {
+            if (!derivative) {
+                return softmax(matrix);
+            }
+            float[][] softmax = softmax(matrix);
+            int columns = matrix[0].length;
+            float[][] jacobian = new float[columns][columns];
+            for (int i = 0; i < columns; i++) {
                 for (int j = 0; j < columns; j++) {
-                    float val1 = m1[i][j];
-                    float val2 = m2[i][j];
-                    if (val1 > val2) {
-                        result[i][j] = val1;
+                    if (i == j) {
+                        jacobian[i][j] = softmax[0][i] * (1 - softmax[0][j]);
                     } else {
-                        result[i][j] = val2;
+                        jacobian[i][j] = softmax[0][i] * -softmax[0][j];
                     }
                 }
             }
-            return result;
+            return jacobian;//Should be transposed?
+        };
+    }
+
+    public static class LossFunction {//Should sums be divided by the number of outputs of the network?
+
+        /**
+         * @param steepnessFactor Recommended value: .5
+         * @return Quadratic loss function.
+         */
+        public static final BiFunction<float[][], float[][], Object[]> QUADRATIC(double steepnessFactor) {
+            final float steepness = (float) steepnessFactor;
+            return (outputs, targets) -> {
+                double loss = sum(scale(steepness, square(subtract(outputs, targets))));//m(f(x) - y)^2 where f(x) is the output of the network and y is the target output
+                return new Object[]{loss, scale(2 * steepness, subtract(outputs, targets))};//Derivative of the loss function for each sample, 2m(f(x) - y)
+            };
         }
 
-        public int argmax(float[][] oneRowMatrix) {
-            float max = Float.NEGATIVE_INFINITY;
-            int index = 0;
-            for (int i = 0; i < oneRowMatrix[0].length; i++) {
-                if (max < oneRowMatrix[0][i]) {
-                    max = oneRowMatrix[0][i];
-                    index = i;
+        /**
+         * @param steepnessFactor Recommended value: 1
+         * @return Huber loss function.
+         */
+        public static final BiFunction<float[][], float[][], Object[]> HUBER(double steepnessFactor) {
+            final float steepness = (float) steepnessFactor;
+            final float deltaHalf = steepness / 2;
+            return (outputs, targets) -> {
+                int columns = outputs[0].length;
+                float[][] a = subtract(outputs, targets);
+                float sum = 0;
+                for (int j = 0; j < columns; j++) {
+                    float val = a[0][j];
+                    if (Math.abs(val) < steepness) {
+                        sum += (val * val) / 2;
+                    } else {
+                        sum += steepness * (Math.abs(a[0][j]) - deltaHalf);
+                    }
                 }
-            }
-            return index;
-        }
-
-        public int argmin(float[][] oneRowMatrix) {
-            float min = Float.POSITIVE_INFINITY;
-            int index = 0;
-            for (int i = 0; i < oneRowMatrix[0].length; i++) {
-                if (min > oneRowMatrix[0][i]) {
-                    min = oneRowMatrix[0][i];
-                    index = i;
+                double loss = sum;
+                float[][] deriv = new float[1][columns];
+                for (int j = 0; j < columns; j++) {
+                    float val = a[0][j];
+                    if (Math.abs(val) < steepness) {
+                        deriv[0][j] = a[0][j];
+                    } else {
+                        deriv[0][j] = steepness * (a[0][j] / Math.abs(a[0][j]));
+                    }
                 }
-            }
-            return index;
+                return new Object[]{loss, deriv};
+            };
         }
 
-        public float[][] append(float[][] oneRow1, float[][] oneRow2) {
-            int length1 = oneRow1[0].length;
-            int length2 = oneRow2[0].length;
-            float[][] result = new float[1][length1 + length2];
-            for (int i = 0; i < length1; i++) {
-                result[0][i] = oneRow1[0][i];
-            }
-            for (int i = 0; i < length2; i++) {
-                result[0][i + length1] = oneRow2[0][i];
-            }
-            return result;
+        /**
+         * @param steepnessFactor Recommended value: 1
+         * @return Pseudo Huber loss function.
+         */
+        public static final BiFunction<float[][], float[][], Object[]> HUBERPSEUDO(double steepnessFactor) {
+            final float steepness = (float) steepnessFactor;
+            return (outputs, targets) -> {
+                int columns = outputs[0].length;
+                final float deltaSquared = steepness * steepness;
+                final float[][] ones = create(1, columns, 1);
+                final float[][] a = subtract(outputs, targets);
+                final float[][] root = sqrt(add(ones, scale(square(a), 1 / deltaSquared)));
+                double loss = sum(scale(deltaSquared, subtract(root, ones)));
+                return new Object[]{loss, divide(a, root)};
+            };
+        }
+
+        /**
+         * @param steepnessFactor Recommended value: 1
+         * @return Cross entropy/log loss function.
+         */
+        public static final BiFunction<float[][], float[][], Object[]> CROSSENTROPY(double steepnessFactor) {
+            final float steepness = (float) steepnessFactor;
+            return (outputs, targets) -> {
+                double loss = steepness * -sum(multiply(targets, ln(outputs)));
+                return new Object[]{loss, scale(-steepness, divide(targets, outputs))};
+            };
         }
     }
 
-    private static void initGraph(Stage stage, NN nn) {
-        final NumberAxis xAxis = new NumberAxis();
-        final NumberAxis yAxis = new NumberAxis();
-        xAxis.setAnimated(false);
-        xAxis.setLabel("Training Sessions");
-        yAxis.setAnimated(false);
-        yAxis.setLabel(graphMeasuresAccuracy ? "Accuracy" : "Cost");
-        if (graphMeasuresAccuracy) {
-            yAxis.setAutoRanging(false);
-            yAxis.setUpperBound(1);
-            yAxis.setTickUnit(.05);
+    /**
+     * The first three parameters of the QuadFunction are strictly for the time
+     * step, learning rate, and the gradients respectively. The third parameter
+     * is an array of matrices to store info such as previous updates,
+     * gradients, etc. The QuadFunction returns an array where its first element
+     * is a array with one element to hold the gradient update matrix and its
+     * second element is the storage array that is passed into the next call of
+     * the optimizer.
+     */
+    public static class Optimizer {
+
+        //Should be final?
+        public static final float beta = .9f;
+        public static final float beta2 = .999f;
+        public static final float e = .00000001f;
+
+        private static float[][] EWMA(float beta, float[][] prevStep, float[][] currentStep) {
+            return add(scale(beta, prevStep), scale(1 - beta, currentStep));
         }
-        XYChart.Series<Number, Number> series = new XYChart.Series<>();
-        series.setName(yAxis.getLabel() + " over " + xAxis.getLabel());
-        ScatterChart<Number, Number> chart = new ScatterChart<>(xAxis, yAxis);
-        chart.setAnimated(false);
-        chart.getData().add(series);
-        Scene scene = new Scene(chart, 600, 300);
-        stage.setScene(scene);
-        stage.show();
-        stage.setTitle(nn.NAME);
-        Thread updateThread = new Thread(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(50);
-                    Platform.runLater(() -> series.getData().add(new XYChart.Data<>(nn.sessions, !graphMeasuresAccuracy ? nn.cost : 1 / Math.pow(10, nn.cost))));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> VANILLA = (step, lr, gradients, storage) -> {
+            return new float[][][][]{{scale(lr, gradients)}, null};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> MOMENTUM = (step, lr, gradients, storage) -> {
+            float[][] update = add(scale(beta, storage[0]), scale(lr, gradients));
+            return new float[][][][]{{update}, {update}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> NESTEROV = (step, lr, gradients, storage) -> {//Dozat's modification because calculating two gradients would take a lot of recoding
+            float[][] m = add(scale(beta, storage[0]), scale(lr, gradients));
+            float[][] update = add(scale(beta, m), scale(lr, gradients));
+            return new float[][][][]{{update}, {m}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> ADAGRAD = (step, lr, gradients, storage) -> {
+            int rows = gradients.length;
+            float val = (1 / (float) Math.sqrt(sum(storage[0]) + e));
+            float[][] G = create(rows, rows, 0);
+            for (int i = 0; i < rows; i++) {
+                G[i][i] = val;
+            }
+            float[][] update = dotProduct.apply(scale(lr, G), gradients);
+            return new float[][][][]{{update}, {square(gradients)}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> ADADELTA = (step, lr, gradients, storage) -> {
+            float[][] epsilon = create(gradients.length, gradients[0].length, e);
+            float[][] gradientsE = EWMA(beta, storage[0], square(gradients));
+            float[][] gradientsRMS = sqrt(add(gradientsE, epsilon));
+            float[][] deltaRMS = sqrt(add(storage[1], epsilon));
+            float[][] update = multiply(divide(deltaRMS, gradientsRMS), gradients);
+            float[][] deltaE = EWMA(beta, storage[1], square(update));
+            return new float[][][][]{{update}, {gradientsE, deltaE}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> RMSPROP = (step, lr, gradients, storage) -> {
+            float[][] s = EWMA(beta, storage[0], square(gradients));
+            float[][] s_ = scale(1 / (1 - (float) Math.pow((double) beta, step)), s);//Bias correction
+            float[][] update = divide(scale(lr, gradients), add(sqrt(s_), create(s.length, s[0].length, e)));
+            return new float[][][][]{{update}, {s}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> ADAM = (step, lr, gradients, storage) -> {
+            float[][] m = EWMA(beta, storage[0], gradients);
+            float[][] v = EWMA(beta2, storage[1], square(gradients));
+            float[][] m_ = scale(1 / (1 - (float) Math.pow((double) beta, step)), m);
+            float[][] v_ = scale(1 / (1 - (float) Math.pow((double) beta2, step)), v);
+            float[][] update = divide(scale(lr, m_), add(sqrt(v_), create(v_.length, v_[0].length, e)));
+            return new float[][][][]{{update}, {m, v}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> ADAMAX = (step, lr, gradients, storage) -> {
+            float[][] m = EWMA(beta, storage[0], gradients);
+            float[][] v = EWMA(beta2, storage[1], square(gradients));
+            float[][] m_ = scale(m, 1 / (1 - (float) Math.pow((double) beta, step)));
+            float[][] u = max(scale(beta2, storage[1]), abs(gradients));
+            float[][] update = divide(scale(lr, m_), add(u, create(u.length, u[0].length, e)));
+            return new float[][][][]{{update}, {m, v}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> NADAM = (step, lr, gradients, storage) -> {
+            int rows = gradients.length;
+            int columns = gradients[0].length;
+            float[][] m = EWMA(beta, storage[0], gradients);
+            float[][] v = EWMA(beta2, storage[1], square(gradients));
+            float[][] m_ = scale(1 / (1 - (float) Math.pow((double) beta, step)), m);
+            float[][] v_ = scale(1 / (1 - (float) Math.pow((double) beta2, step)), v);
+            float[][] update = multiply(divide(create(rows, columns, lr), add(sqrt(v_), create(rows, columns, e))), add(scale(beta, m_), scale(scale(1 - beta, gradients), 1 / (1 - beta))));
+            return new float[][][][]{{update}, {m, v}};
+        };
+        public static final QuadFunction<Integer, Float, float[][], float[][][], float[][][][]> AMSGRAD = (step, lr, gradients, storage) -> {
+            float[][] m = EWMA(beta, storage[0], gradients);
+            float[][] v = EWMA(beta2, storage[1], square(gradients));
+            float[][] v_ = max(storage[1], v);
+            float[][] update = divide(scale(lr, m), add(sqrt(v_), create(v_.length, v_[0].length, e)));
+            return new float[][][][]{{update}, {m, v}};
+        };
+    }
+
+    public static float[][] normalizeMinMax(float[][] oneRow) {
+        int elements = oneRow[0].length;
+        float[][] result = new float[1][elements];
+        float min = min(oneRow);
+        float max = max(oneRow);
+        for (int i = 0; i < elements; i++) {
+            result[0][i] = (oneRow[0][i] - min) / (max - min);
+        }
+        return result;
+    }
+
+    public static float[][] normalizeZScore(float[][] oneRow) {
+        int elements = oneRow[0].length;
+        float mean = sum(oneRow) / elements;
+        float deviation = (float) (Math.sqrt(sum(square(subtract(oneRow, create(1, elements, mean)))) / (mean)));
+        return divide(subtract(oneRow, create(1, elements, mean)), create(1, elements, deviation));
+    }
+
+    public static float[][] normalizeTanh(float[][] oneRow) {
+        int elements = oneRow[0].length;
+        float[][] result = new float[1][elements];
+        float mean = sum(oneRow) / elements;
+        float deviation = (float) (Math.sqrt(sum(square(subtract(oneRow, create(1, elements, mean)))) / mean));
+        for (int i = 0; i < elements; i++) {
+            result[0][i] = (.5f * (tanh((.01f * ((oneRow[0][i] - mean) / (deviation))), false) + 1));//Tanh estimator normalization
+        }
+        return result;
+    }
+
+    public static float sigmoid(float x, boolean derivative) {
+        if (!derivative) {
+            return 1 / (1 + (float) Math.exp(-x));//sigmoid(x)
+        }
+        return sigmoid(x, false) * (1 - sigmoid(x, false));//sigmoid'(x)
+    }
+
+    public static float tanh(float x, boolean derivative) {
+        if (!derivative) {
+            return (2 / (1 + (float) Math.exp(-2 * x))) - 1;//tanh(x)
+        }
+        float val = tanh(x, false);
+        return 1 - val * val;//tanh'(x)
+    }
+
+    public static float relu(float x, boolean derivative) {
+        if (!derivative) {
+            return Math.max(0, x);
+        }
+        if (x < 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    public static float leakyrelu(float x, boolean derivative) {
+        if (derivative) {
+            return Math.max(.001f * x, x);
+        }
+        if (x < 0) {
+            return .001f;
+        }
+        return 1;
+    }
+
+    public static float swish(float x, boolean derivative) {
+        if (!derivative) {
+            return x * sigmoid(x, false);
+        }
+        return x * sigmoid(x, true) + sigmoid(x, false);
+    }
+
+    public static float mish(float x, boolean derivative) {
+        if (!derivative) {
+            return (x * tanh((float) Math.log(1 + Math.exp(x)), false));
+        }
+        double x_ = (double) x;
+        return (float) ((Math.exp(x_) * ((4 * (x_ + 1)) + (4 * Math.exp(2 * x_)) + (Math.exp(3 * x_)) + (Math.exp(x_) * (4 * x_ + 6)))) / ((2 * Math.exp(2 * x_)) + (Math.exp(2 * x_)) + 2));
+    }
+
+    public static float[][] softmax(float[][] matrix) {
+        float[][] e = exp(matrix);
+        return scale(1 / sum(e), e);
+    }
+
+    public static void setThreads(int numberOfThreads) {
+        if (numberOfThreads <= 1) {
+            dotProduct = (a, b) -> dot(a, b);
+        } else {
+            threads = numberOfThreads;
+            dotProduct = (a, b) -> dotThreads(a, b);
+        }
+    }
+
+    private static class MatrixThread extends Thread {
+
+        int num;
+        int threadNum;
+        int rows;
+        int columns;
+        int columns2;
+        float[][] m1;
+        float[][] m2;
+        float[][] result;
+
+        MatrixThread(int num, int threadNum, int rows, int columns, int columns2, float[][] m1, float[][] m2, float[][] result) {
+            this.num = num;
+            this.threadNum = threadNum;
+            this.rows = rows;
+            this.columns = columns;
+            this.columns2 = columns2;
+            this.m1 = m1;
+            this.m2 = m2;
+            this.result = result;
+        }
+
+        @Override
+        public void run() {
+            for (int i = num * rows / threadNum; i < (num + 1) * rows / threadNum; i++) {
+                for (int k = 0; k < columns2; k++) {
+                    for (int j = 0; j < columns; j++) {
+                        result[i][j] += m1[i][k] * m2[k][j];
+                    }
                 }
             }
+        }
+    }
+
+    public static float[][] dotThreads(float[][] m1, float[][] m2) {
+        MatrixThread[] threadArray = new MatrixThread[threads];
+        int rows = m1.length;
+        int columns = m2[0].length;
+        int columns2 = m1[0].length;
+        float[][] result = new float[rows][columns];
+        for (int t = 0; t < threads; t++) {
+            threadArray[t] = new MatrixThread(t, threads, rows, columns, columns2, m1, m2, result);
+            threadArray[t].start();
+        }
+        for (int i = 0; i < threads; i++) {
+            try {
+                threadArray[i].join();
+            } catch (InterruptedException e) {
+
+            }
+        }
+        return result;
+    }
+
+    public static String matrixToString(float[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        String string = "";
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                string += "[" + matrix[i][j] + "] ";
+            }
+            string += "\n";
+        }
+        return string;
+    }
+
+    public static void print(float[][] matrix) {
+        System.out.print(matrixToString(matrix));
+    }
+
+    public static void print(float[][] matrix, String label) {
+        System.out.println(label + ":");
+        System.out.print(matrixToString(matrix));
+    }
+
+    public static void printDimensions(float[][] matrix) {
+        System.out.println("Rows: " + matrix.length + " Columns: " + matrix[0].length);
+    }
+
+    public static float[][] doubleToFloat(double[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float[][] result = new float[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                result[i][j] = (float) (matrix[i][j]);
+            }
+        }
+        return result;
+    }
+
+    public static float[][] create(int rows, int columns, float valueToAllElements) {
+        float[][] result = new float[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                result[i][j] = valueToAllElements;
+            }
+        }
+        return result;
+    }
+
+    public static float[][] randomize(float[][] matrix, float range, float minimum) {
+        return function(matrix, val -> (float) Math.random() * range + minimum);
+    }
+
+    public static float[][] randomize(float[][] matrix, float range, float minimum, Random random) {
+        return function(matrix, val -> random.nextFloat() * range + minimum);
+    }
+
+    public static float[][] transpose(float[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float[][] result = new float[columns][rows];
+        for (int j = 0; j < columns; j++) {
+            for (int i = 0; i < rows; i++) {
+                result[j][i] = matrix[i][j];
+            }
+        }
+        return result;
+    }
+
+    public static float[][] scale(float[][] matrix, float factor) {
+        return function(matrix, val -> factor * val);
+    }
+
+    public static float[][] scale(float factor, float[][] matrix) {
+        return function(matrix, val -> factor * val);
+    }
+
+    public static float[][] add(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> val1 + val2);
+    }
+
+    public static float[][] matrixWithVectorAdd(float[][] matrix, float[][] vector) {
+        int rows = matrix.length;
+        int cols = matrix[0].length;
+        float[][] result = new float[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                result[i][j] = matrix[i][j] + vector[0][j];
+            }
+        }
+        return result;
+    }
+
+    public static float[][] subtract(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> val1 - val2);
+    }
+
+    public static float[][] multiply(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> val1 * val2);
+    }
+
+    public static float[][] divide(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> val1 / val2);
+    }
+
+    public static float[][] dot(float[][] m1, float[][] m2) {
+        int rows1 = m1.length;
+        int columns1 = m1[0].length;
+        int columns2 = m2[0].length;
+        float[][] result = new float[rows1][columns2];
+        if (columns1 % 4 == 0) {//Loop unrolling increases speed
+            for (int i = 0; i < rows1; i++) {
+                for (int k = 0; k < columns1; k += 4) {
+                    for (int j = 0; j < columns2; j++) {
+                        result[i][j] += m1[i][k] * m2[k][j]
+                                + m1[i][k + 1] * m2[k + 1][j]
+                                + m1[i][k + 2] * m2[k + 2][j]
+                                + m1[i][k + 3] * m2[k + 3][j];
+                    }
+                }
+            }
+        } else if (columns1 % 3 == 0) {
+            for (int i = 0; i < rows1; i++) {
+                for (int k = 0; k < columns1; k += 3) {
+                    for (int j = 0; j < columns2; j++) {
+                        result[i][j] += m1[i][k] * m2[k][j]
+                                + m1[i][k + 1] * m2[k + 1][j]
+                                + m1[i][k + 2] * m2[k + 2][j];
+                    }
+                }
+            }
+        } else if (columns1 % 2 == 0) {
+            for (int i = 0; i < rows1; i++) {
+                for (int k = 0; k < columns1; k += 2) {
+                    for (int j = 0; j < columns2; j++) {
+                        result[i][j] += m1[i][k] * m2[k][j]
+                                + m1[i][k + 1] * m2[k + 1][j];
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < rows1; i++) {
+                for (int k = 0; k < columns1; k++) {
+                    for (int j = 0; j < columns2; j++) {
+                        result[i][j] += m1[i][k] * m2[k][j];
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    public static float[][] power(float[][] matrix, double power) {
+        return function(matrix, val -> (float) Math.pow(val, power));
+    }
+
+    public static float[][] square(float[][] matrix) {
+        return function(matrix, val -> val * val);
+    }
+
+    public static float[][] sqrt(float[][] matrix) {
+        return function(matrix, val -> (float) Math.sqrt(val));
+    }
+
+    public static float[][] inverse(float[][] matrix) {
+        return function(matrix, val -> 1 / val);
+    }
+
+    public static float sum(float[][] matrix) {
+        float sum = 0;
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                sum += matrix[i][j];
+            }
+        }
+        return sum;
+    }
+
+    public static float[][] abs(float[][] matrix) {
+        return function(matrix, val -> Math.abs(val));
+    }
+
+    public static float[][] exp(float[][] matrix) {
+        return function(matrix, val -> (float) Math.exp(val));
+    }
+
+    public static float[][] ln(float[][] matrix) {
+        return function(matrix, val -> (float) Math.log(val));
+    }
+
+    public static float[][] copy(float[][] matrix) {
+        return Arrays.stream(matrix).map(el -> el.clone()).toArray(a -> matrix.clone());
+    }
+
+    public static float[][][] copy3d(float[][][] m3d) {
+        return Arrays.stream(m3d).map(m2d -> copy(m2d)).toArray(a -> m3d.clone());
+    }
+
+    public static float[][] oneHot(float[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float[][] result = create(rows, columns, 0);
+        float max = matrix[0][0];
+        int x = 0;
+        int y = 0;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                if (max < matrix[i][j]) {
+                    max = matrix[i][j];
+                    x = i;
+                    y = j;
+                }
+            }
+        }
+        result[x][y] = 1;
+        return result;
+    }
+
+    public static float[][] min(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> Math.min(val1, val2));
+    }
+
+    public static float[][] max(float[][] matrix1, float[][] matrix2) {
+        return bifunction(matrix1, matrix2, (val1, val2) -> Math.max(val1, val2));
+    }
+
+    public static float min(float[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float min = matrix[0][0];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                float val = matrix[i][j];
+                if (val < min) {
+                    min = val;
+                }
+            }
+        }
+        return min;
+    }
+
+    public static float max(float[][] matrix) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float max = matrix[0][0];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                float val = matrix[i][j];
+                if (val > max) {
+                    max = val;
+                }
+            }
+        }
+        return max;
+    }
+
+    public static int argmax(float[][] oneRowMatrix) {
+        float max = Float.NEGATIVE_INFINITY;
+        int index = 0;
+        for (int i = 0; i < oneRowMatrix[0].length; i++) {
+            if (max < oneRowMatrix[0][i]) {
+                max = oneRowMatrix[0][i];
+                index = i;
+            }
+        }
+        return index;
+    }
+
+    public static int argmin(float[][] oneRowMatrix) {
+        float min = Float.POSITIVE_INFINITY;
+        int index = 0;
+        for (int i = 0; i < oneRowMatrix[0].length; i++) {
+            if (min > oneRowMatrix[0][i]) {
+                min = oneRowMatrix[0][i];
+                index = i;
+            }
+        }
+        return index;
+    }
+
+    public static <T> T[] append(T[] a, T[] b) {
+        int size1 = a.length;
+        int size2 = b.length;
+        int size3 = size1 + size2;
+        T[] result;
+        try {
+            result = (T[]) Array.newInstance(a[0].getClass(), size3);
+        } catch (Exception e) {
+            result = (T[]) Array.newInstance(b[0].getClass(), size3);
+        }
+        for (int i = 0; i < size1; i++) {
+            result[i] = a[i];
+        }
+        for (int i = 0; i < size2; i++) {
+            result[i + size1] = b[i];
+        }
+        return result;
+    }
+
+    public static float[][] function(float[][] matrix, Function<Float, Float> function) {
+        int rows = matrix.length;
+        int columns = matrix[0].length;
+        float[][] result = new float[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                result[i][j] = function.apply(matrix[i][j]);
+            }
+        }
+        return result;
+    }
+
+    public static float[][] bifunction(float[][] m1, float[][] m2, BiFunction<Float, Float, Float> bifunction) {
+        int rows = m1.length;
+        int columns = m1[0].length;
+        float[][] result = new float[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                result[i][j] = bifunction.apply(m1[i][j], m2[i][j]);
+            }
+        }
+        return result;
+    }
+    private static final LinkedList<Function<NN, Stage>> INFOLIST = new LinkedList<>();
+    private static final LinkedList<NN> NNLIST = new LinkedList<>();
+    private static int updateRate = 50;
+    private static Timeline infoUpdater = new Timeline(new KeyFrame(Duration.millis(100), handler -> {
+        if (INFOLIST.size() > 0) {
+            Stage infoWindow = INFOLIST.poll().apply(NNLIST.getFirst());
+            infoWindow.setTitle(NNLIST.poll().label);
+            infoWindow.setX((Screen.getPrimary().getBounds().getWidth() / 5) + (Math.random() * Screen.getPrimary().getBounds().getWidth() / 5));
+            infoWindow.show();
+        }
+    }));
+    private static boolean running = false;
+
+    /**
+     *
+     * @param millis Milliseconds between each update of all info panels.
+     * Default is 50 milliseconds
+     */
+    public static void setInfoUpdateRate(int millis) {
+        updateRate = millis;
+    }
+
+    private static void updaterBuilder(EventHandler handler) {
+        Timeline updater = new Timeline(new KeyFrame(Duration.millis(updateRate), handler));
+        updater.setCycleCount(-1);//Indefinite
+        updater.play();
+    }
+
+    public static Function<NN, Stage> infoGraph(boolean mode) {
+        return nn -> {
+            NumberAxis xAxis = new NumberAxis();
+            NumberAxis yAxis = new NumberAxis();
+            xAxis.setAnimated(false);
+            xAxis.setLabel("Epochs");
+            yAxis.setAnimated(false);
+            yAxis.setLabel(mode ? "Accuracy" : "Loss");
+            if (mode) {
+                yAxis.setForceZeroInRange(false);
+            }
+            XYChart.Series<Number, Number> series = new XYChart.Series<>();
+            ScatterChart<Number, Number> chart = new ScatterChart<>(xAxis, yAxis);
+            chart.setAnimated(false);
+            chart.getData().add(series);
+            updaterBuilder(handler -> {
+                if (mode) {
+                    series.getData().add(new XYChart.Data<>(nn.sessions, 1 / Math.pow(100 * Math.E, nn.loss)));
+                } else {
+                    series.getData().add(new XYChart.Data<>(nn.sessions, nn.loss));
+                }
+            });
+            Stage stage = new Stage();
+            stage.setScene(new Scene(chart, 600, 300));
+            return stage;
+        };
+    }
+
+    public static Function<NN, Stage> infoLayers = nn -> {
+        ScrollPane scroll = new ScrollPane();
+        FlowPane network = new FlowPane();
+        scroll.setContent(network);
+        int size = nn.length;
+        Text[] parameters = new Text[size];
+        updaterBuilder(handler -> {
+            for (int i = 0; i < size; i++) {
+                parameters[i] = new Text("Layer " + (i + 1) + ":\n" + nn.network[i].toString());
+            }
+            network.getChildren().clear();
+            network.getChildren().addAll(parameters);
         });
-        updateThread.setDaemon(true);
-        updateThread.start();
-    }
-
-    public static void graphJFX(boolean graphMeasuresAccuracy, NN nnForGraph) {//Cost = false, Accuracy = true
-        NNLib.graphMeasuresAccuracy = graphMeasuresAccuracy;
+        Scene scene = new Scene(scroll, 600, 300);
         Stage stage = new Stage();
-        initGraph(stage, nnForGraph);
-    }
+        stage.setScene(scene);
+        return stage;
+    };
 
-    public static void graph(boolean graphMeasuresAccuracy, NN nnForGraph) {
-        NNLib.graphMeasuresAccuracy = graphMeasuresAccuracy;
-        NNLib.nnForGraph = nnForGraph;
-        new Thread(() -> {
-            NNLib.launch(NNLib.class);
-        }).start();
+    public static void showInfo(Function<NN, Stage> info, NN nn) {
+        if (!running) {
+            Thread launchThread = new Thread(() -> {
+                try {
+                    running = true;
+                    launch(NNLib.class);
+                } catch (IllegalStateException e) {
+                    infoUpdater.setCycleCount(-1);
+                    infoUpdater.play();
+                    running = true;
+                }
+            });
+            launchThread.setName("NNLib Launch Thread");
+            launchThread.start();
+        }
+        INFOLIST.add(info);
+        NNLIST.add(nn);
     }
 
     @Override
     public void start(Stage stage) {
-        initGraph(stage, nnForGraph);
-    }
-
-    public static void main(String[] args) {
-        launch(args);
+        infoUpdater.setCycleCount(-1);
+        infoUpdater.play();
     }
 }

@@ -6,7 +6,7 @@ public class Main {
         Scanner sc = new Scanner(System.in);
         Game g = new Game();
         g.nn.load();
-        final int SESSIONS = 100_000;
+        final int SESSIONS = 10_000;
         long times = 0;
         boolean flag = true;
         String player;
@@ -74,7 +74,7 @@ public class Main {
                     System.out.println("Disable printing?");
                     String fast = sc.nextLine();
                     g.quickLearn = fast.equalsIgnoreCase("1") ? true : fast.equalsIgnoreCase("y");
-                    NNLib.graph(false, g.nn);
+                    NNLib.showInfo(NNLib.infoGraph(false), g.nn);
                     while(true){
                         while(true){
                             System.out.println("Train for " + SESSIONS + " sessions how many times?");
@@ -108,6 +108,7 @@ public class Main {
                                 g.printTrainStats();
                                 g.resetScores();
                             }
+                            g.aiCheck();
                         }
                         if(!g.quickLearn){
                             g.printTrainStats();

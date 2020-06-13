@@ -1,12 +1,20 @@
 package tictactoeai;
 
 import java.util.*;
-import tictactoeai.NNLib.*;
+import tictactoeai.NNLib.ActivationFunction;
+import tictactoeai.NNLib.Initializer;
+import tictactoeai.NNLib.Layer;
+import tictactoeai.NNLib.LossFunction;
+import tictactoeai.NNLib.NN;
+import tictactoeai.NNLib.Optimizer;
 
 public class Game {
 
-    boolean quickLearn = false;
-    NN nn = new NNLib().new NN("small", 0, .0001, Initializer.XAVIER, ActivationFunction.TANH, ActivationFunction.SIGMOID, LossFunction.QUADRATIC.steepness(.1), Optimizer.AMSGRAD, 18, 18, 18, 1);
+    boolean quickLearn = true;
+    NN nn = new NN("TTT_NN", 0, .0001, LossFunction.QUADRATIC(.5), Optimizer.AMSGRAD,
+            new Layer.Dense(18, 18, ActivationFunction.TANH, Initializer.XAVIER),
+            new Layer.Dense(18, 18, ActivationFunction.TANH, Initializer.XAVIER),
+            new Layer.Dense(18, 1, ActivationFunction.TANH, Initializer.XAVIER));
     Scanner sc = new Scanner(System.in);
     private double[][] board = {
         {0, 0, 0},
@@ -20,12 +28,10 @@ public class Game {
     int spot;
     int x;
     int y;
-    double max;
-    double min;
     double output;
     double[][] inputs;
     float[][] target = new float[1][1];
-    double epsilon = .35;
+    double explorationRate = .5;
     ArrayList<float[][]> actions = new ArrayList<>();
 
     public void resetGame() {
@@ -201,8 +207,8 @@ public class Game {
     public void randomTurn(int mark) {
         printBoard();
         while (true) {
-            int r1 = (int) (Math.random() * 3);
-            int r2 = (int) (Math.random() * 3);
+            int r1 = (int) (nn.getRandom().nextInt(3));
+            int r2 = (int) (nn.getRandom().nextInt(3));
             if (board[r1][r2] == 0) {
                 board[r1][r2] = mark;
                 inputs = toRow();
@@ -216,7 +222,7 @@ public class Game {
     public void aiTurn(int mark) {
         printBoard();
         if (mark == 1) {//Maximizing
-            max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
+            double max = -1;
             for (int i = 0; i < 9; i++) {//Iterate over each square
                 if (toRow()[0][i] == 0) {
                     inputs = toRow();
@@ -229,7 +235,7 @@ public class Game {
                 }
             }
         } else if (mark == 2) {//Minimizing
-            min = Double.POSITIVE_INFINITY;//Exaggerated for clarity
+            double min = 1;//Exaggerated for clarity
             for (int i = 0; i < 9; i++) {//Iterate over each square
                 if (toRow()[0][i] == 0) {
                     inputs = toRow();
@@ -250,7 +256,7 @@ public class Game {
 
     public void aiTrain(int mark) {
         printBoard();
-        if (nn.getRandom().nextDouble() < epsilon) {//Exploration rate
+        if (nn.getRandom().nextDouble() < explorationRate) {//Exploration rate
             while (true) {
                 int r1 = (int) (nn.getRandom().nextInt(3));
                 int r2 = (int) (nn.getRandom().nextInt(3));
@@ -263,7 +269,7 @@ public class Game {
             }
         } else {
             if (mark == 1) {
-                max = Double.NEGATIVE_INFINITY;//Exaggerated for clarity
+                double max = -1;//Exaggerated for clarity
                 for (int i = 0; i < 9; i++) {//Iterate over each square
                     if (toRow()[0][i] == 0) {
                         inputs = toRow();
@@ -277,7 +283,7 @@ public class Game {
                     }
                 }
             } else if (mark == 2) {
-                min = Double.POSITIVE_INFINITY;//Exaggerated for clarity
+                double min = 1;
                 for (int i = 0; i < 9; i++) {//Iterate over each square
                     if (toRow()[0][i] == 0) {
                         inputs = toRow();
@@ -302,20 +308,67 @@ public class Game {
     public void aiLearn() {
         int size = actions.size();
         if (game == 1) {
-            target[0][0] = .99f;
+            target[0][0] = 1;
             for (int i = 0; i < size; i++) {
                 nn.backpropagation(actions.get(i), target);
             }
         } else if (game == 2) {
-            target[0][0] = .01f;
+            target[0][0] = -1;
             for (int i = 0; i < size; i++) {
                 nn.backpropagation(actions.get(i), target);
             }
         } else if (game == 3) {
-            target[0][0] = .5f;
+            target[0][0] = 0;
             for (int i = 0; i < size; i++) {
                 nn.backpropagation(actions.get(i), target);
             }
+        }
+    }
+
+    public void aiCheck() {
+        //Check as X
+        boolean flawless = true;
+        for (int i = 0; i < 10000; i++) {
+            while (true) {
+                aiTurn(1);
+                if (game != 0) {
+                    break;
+                }
+                randomTurn(2);
+                if (game != 0) {
+                    break;
+                }
+            }
+            if (game == 2) {
+                flawless = false;
+                break;
+            }
+            resetGame();
+        }
+        if (flawless) {
+            System.out.println("No losses as X");
+        }
+        //Check as O
+        flawless = true;
+        for (int i = 0; i < 100000; i++) {
+            while (true) {
+                aiTurn(2);
+                if (game != 0) {
+                    break;
+                }
+                randomTurn(1);
+                if (game != 0) {
+                    break;
+                }
+            }
+            if (game == 1) {
+                flawless = false;
+                break;
+            }
+            resetGame();
+        }
+        if (flawless) {
+            System.out.println("No losses as O");
         }
     }
 }
