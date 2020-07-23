@@ -10,6 +10,7 @@ public class Main {
         Game g = new Game();
         g.nn.loadInsideJar();
         final int SESSIONS = 10_000;
+        final boolean STOPAFTERONLYTIES = true;
         int totalGamesTrained = 0;
         long times = 0;
         boolean running = true;
@@ -115,7 +116,8 @@ public class Main {
                                 g.resetScores();
                             }
                             System.out.println("Total games: " + totalGamesTrained);
-                            if (g.aiCheck()) {
+                            boolean onlyTies = g.aiCheck();
+                            if (onlyTies && STOPAFTERONLYTIES) {
                                 break;
                             }
                         }
