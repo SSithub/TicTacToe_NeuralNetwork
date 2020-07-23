@@ -1,20 +1,25 @@
 package tictactoeai;
 
 import java.util.*;
-import tictactoeai.NNLib.ActivationFunction;
-import tictactoeai.NNLib.Initializer;
-import tictactoeai.NNLib.Layer;
-import tictactoeai.NNLib.LossFunction;
-import tictactoeai.NNLib.NN;
-import tictactoeai.NNLib.Optimizer;
+import tictactoeai.NNlib.Activation;
+import tictactoeai.NNlib.Initializer;
+import tictactoeai.NNlib.Layer;
+import tictactoeai.NNlib.LossFunction;
+import tictactoeai.NNlib.NN;
+import tictactoeai.NNlib.Optimizer;
 
 public class Game {
 
     boolean quickLearn = true;
-    NN nn = new NN("TTT_NN", 0, .0001, LossFunction.QUADRATIC(.5), Optimizer.AMSGRAD,
-            new Layer.Dense(18, 18, ActivationFunction.TANH, Initializer.XAVIER),
-            new Layer.Dense(18, 18, ActivationFunction.TANH, Initializer.XAVIER),
-            new Layer.Dense(18, 1, ActivationFunction.TANH, Initializer.XAVIER));
+    static NN nn = new NN("TTT_NN", 0, .0001f, LossFunction.QUADRATIC(.5), Optimizer.AMSGRAD,
+            new Layer.Dense(18, 18, Activation.TANH, Initializer.XAVIER),
+            new Layer.Dense(18, 9, Activation.TANH, Initializer.XAVIER),
+            new Layer.Dense(9, 9, Activation.TANH, Initializer.XAVIER),
+            new Layer.Dense(9, 1, Activation.TANH, Initializer.XAVIER));
+
+    static {
+        System.out.println("NN parameters " + nn.getParameterCount());
+    }
     Scanner sc = new Scanner(System.in);
     private double[][] board = {
         {0, 0, 0},
@@ -227,7 +232,7 @@ public class Game {
                 if (toRow()[0][i] == 0) {
                     inputs = toRow();
                     inputs[0][i] = mark;
-                    output = nn.feedforward(toInputs(inputs))[0][0];
+                    output = ((float[][]) nn.feedforward(toInputs(inputs)))[0][0];
                     if (output > max) {
                         max = output;
                         spot = i;//Saving the location in row form
@@ -240,7 +245,7 @@ public class Game {
                 if (toRow()[0][i] == 0) {
                     inputs = toRow();
                     inputs[0][i] = mark;
-                    output = nn.feedforward(toInputs(inputs))[0][0];
+                    output = ((float[][]) nn.feedforward(toInputs(inputs)))[0][0];
 //                    System.out.println(output);
                     if (output < min) {
                         min = output;
@@ -251,6 +256,9 @@ public class Game {
         }
         toBoard();
         board[y][x] = mark;
+        if (!quickLearn) {
+            System.out.println("Evaluation: " + ((float[][]) nn.feedforward(toInputs(inputs)))[0][0]);
+        }
         win(mark);
     }
 
@@ -274,7 +282,7 @@ public class Game {
                     if (toRow()[0][i] == 0) {
                         inputs = toRow();
                         inputs[0][i] = mark;
-                        output = nn.feedforward(toInputs(inputs))[0][0];
+                        output = ((float[][]) nn.feedforward(toInputs(inputs)))[0][0];
                         //                    System.out.println(output);
                         if (output > max) {
                             max = output;
@@ -288,7 +296,7 @@ public class Game {
                     if (toRow()[0][i] == 0) {
                         inputs = toRow();
                         inputs[0][i] = mark;
-                        output = nn.feedforward(toInputs(inputs))[0][0];
+                        output = ((float[][]) nn.feedforward(toInputs(inputs)))[0][0];
                         if (output < min) {
                             min = output;
                             spot = i;//Saving the location in row form
@@ -325,10 +333,10 @@ public class Game {
         }
     }
 
-    public void aiCheck() {
+    public boolean aiCheck() {
         //Check as X
-        boolean flawless = true;
-        for (int i = 0; i < 10000; i++) {
+        boolean flawlessX = true;
+        for (int i = 0; i < 100000; i++) {
             while (true) {
                 aiTurn(1);
                 if (game != 0) {
@@ -340,35 +348,40 @@ public class Game {
                 }
             }
             if (game == 2) {
-                flawless = false;
+                flawlessX = false;
                 break;
             }
             resetGame();
         }
-        if (flawless) {
+        if (flawlessX) {
             System.out.println("No losses as X");
         }
         //Check as O
-        flawless = true;
+        boolean flawlessO = true;
         for (int i = 0; i < 100000; i++) {
             while (true) {
-                aiTurn(2);
+                randomTurn(1);
                 if (game != 0) {
                     break;
                 }
-                randomTurn(1);
+                aiTurn(2);
                 if (game != 0) {
                     break;
                 }
             }
             if (game == 1) {
-                flawless = false;
+                flawlessO = false;
                 break;
             }
             resetGame();
         }
-        if (flawless) {
+        if (flawlessO) {
             System.out.println("No losses as O");
+        }
+        if (flawlessX && flawlessO) {
+            return true;
+        } else {
+            return false;
         }
     }
 }
