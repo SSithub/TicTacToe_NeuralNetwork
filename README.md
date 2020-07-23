@@ -26,8 +26,6 @@ The labels for the inputs are given by the outcome of the game, so each board st
 
 This method tends to lead to the network forgetting previous optimal actions, but depending on the network hyperparameters and the exploration rate, the network will converge to a point where it will consistently make optimal moves with the occasional forgetting.
 
-ReLU and LeakyReLU does not seem to work at all, only functions that worked are tanh and sigmoid.
-
 ### Results
 
-With the network architecture above, the network first solves the game in around 800,000 epochs or 100,000 games and it consistently retains optimal play. With a higher learning rate, it solves the game in a lot less epochs, but it forgets right after.
+With the network architecture above, the network can tie any game as both players after around 300,000 games of self-play. It does not retain this ability for many games but can consistently avoid losing as the X player but it has a much harder time doing the same for the O player. 
