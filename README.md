@@ -2,7 +2,7 @@
 A beginning problem for deep learning.
 
 ### Network Architecture
-18 input nodes, 18 hidden nodes in layer 1, 18 hidden nodes in layer 2, 1 output node. All layers use the tanh activation function with Xavier weight initialization. The optimizer used is AMSGrad with a learning rate of .0001.
+18 input nodes, 18 nodes in layer 1, 9 nodes in layer 2, 9 nodes in layer 3, and 1 output node. All layers use the tanh activation function with Xavier weight initialization. The optimizer used is AMSGrad with a learning rate of .0001.
 
 ### Method
 The first approach was to feed forward 9 inputs and have 1 indicate an X, have -1 indicate an O, and have 0 indicate an empty spot.
